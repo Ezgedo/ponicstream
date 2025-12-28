@@ -50,7 +50,9 @@ const DEFAULT_STYLES: ChatStyles = {
     animationExit: "fade",
 };
 
-export default function ChatOverlayPage() {
+import { Suspense } from "react";
+
+function ChatOverlayContent() {
     const searchParams = useSearchParams();
     const [styles, setStyles] = useState<ChatStyles>(DEFAULT_STYLES);
     const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -103,10 +105,6 @@ export default function ChatOverlayPage() {
             if (searchParams.get("borderRadiusBR")) urlStyles.borderRadiusBR = Number(searchParams.get("borderRadiusBR"));
 
             // Merge: Default -> URL -> LocalStorage (LocalStorage wins for live updates)
-            // Actually, if the user explicitly provided a URL full of params, maybe they want THAT snapshot?
-            // BUT, the user explicitly asked for "take them from localstorage... so it updates in the moment".
-            // So we will prioritize LocalStorage if it exists.
-
             setStyles((prev) => ({ ...DEFAULT_STYLES, ...urlStyles, ...localStyles }));
         };
 
@@ -143,8 +141,7 @@ export default function ChatOverlayPage() {
 
         if (!channel) return;
 
-        // Cleanup function handles previous client if any (though usually React handles unmount first)
-        // But we want to ensure we don't have multiple
+        // Cleanup function handles previous client if any
         if (clientRef.current) {
             try {
                 clientRef.current.disconnect();
@@ -162,7 +159,7 @@ export default function ChatOverlayPage() {
         });
 
         client.connect().catch((err: any) => {
-            console.warn("TMI Connection Error (failed to connect, will retry):", err);
+            console.warn("TMI Connection Error:", err);
         });
 
         client.on("message", (channel: string, tags: any, message: string, self: boolean) => {
@@ -175,15 +172,14 @@ export default function ChatOverlayPage() {
                 id: tags.id || Date.now().toString(),
                 user: tags["display-name"] || tags.username,
                 message: message,
-                color: tags.color || currentStyles.accentColor, // Use user color or fallback to accent
+                color: tags.color || currentStyles.accentColor,
                 timestamp: Date.now(),
-                emotes: tags.emotes, // Pass raw emote data from tmi.js
-                badges: tags.badges, // Pass raw badge data
+                emotes: tags.emotes,
+                badges: tags.badges,
             };
 
             setMessages((prev) => {
                 const limit = currentStyles.maxMessages || 50;
-                // Check for duplicates based on ID to be extra safe
                 if (prev.some(m => m.id === newMessage.id)) return prev;
 
                 const updated = [...prev, newMessage];
@@ -195,7 +191,6 @@ export default function ChatOverlayPage() {
         clientRef.current = client;
 
         return () => {
-            // Cleanup: Disconnect when component unmounts or channel changes
             if (clientRef.current) {
                 try {
                     clientRef.current.disconnect();
@@ -203,14 +198,11 @@ export default function ChatOverlayPage() {
                 clientRef.current = null;
             }
         };
-    }, [searchParams]); // Only re-run if URL params (channel) change. removed styles dependency.
+    }, [searchParams]);
 
-    // Clean layout - just the chat box 
-    // We use transparent background for the page body in globals.css or here
     return (
         <div className="w-screen h-screen overflow-hidden bg-transparent">
-            {/* If no channel is provided, show a warning only if visible */}
-            {/* If no channel is provided, show a warning only if visible */}
+            {/* If no channel is warning */}
             {!searchParams.get("channel") && typeof window !== 'undefined' && !localStorage.getItem("twitchChannel") && messages.length === 0 && (
                 <div className="p-4 bg-red-500/20 text-red-200 m-4 rounded">
                     No channel specified. Add ?channel=NAME to URL or login to Dashboard.
@@ -218,5 +210,13 @@ export default function ChatOverlayPage() {
             )}
             <ChatBox styles={styles} messages={messages} />
         </div>
+    );
+}
+
+export default function ChatOverlayPage() {
+    return (
+        <Suspense fallback={<div className="text-white p-4">Loading Overlay...</div>}>
+            <ChatOverlayContent />
+        </Suspense>
     );
 }
