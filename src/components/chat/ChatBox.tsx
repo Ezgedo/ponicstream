@@ -12,6 +12,7 @@ export interface ChatStyles {
     // Colors
     textColor: string;
     backgroundColor: string;
+    backgroundImage?: string;
     accentColor: string;
     useUserColorForAccent: boolean;
     useUserColorForName: boolean;
@@ -24,18 +25,38 @@ export interface ChatStyles {
     height: number;
     position: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right" | "center-left" | "center-right";
     direction: "up" | "down";
-    maxMessages: number; // New
+    maxMessages: number;
 
     showTimestamp: boolean;
+    timestampColor: string;
+    timestampFontSize: number;
+    timestampIsBold: boolean;
 
     // Advanced Styling
     padding: number;
+    containerPadding: number;
     margin: number;
-    bgOpacity: number; // 0-100
+    bgOpacity: number;
     borderRadiusTL: number;
     borderRadiusTR: number;
     borderRadiusBL: number;
     borderRadiusBR: number;
+
+    // Background Modes
+    msgBgMode: 'solid' | 'cycle' | 'role' | 'pride' | 'image';
+    msgBgCycleColors: string[]; // Up to 3 colors
+    msgBgCycleCount: 2 | 3;
+    msgBgRoleColors: {
+        broadcaster: string;
+        moderator: string;
+        vip: string;
+        subscriber: string;
+        viewer: string;
+    };
+
+    // Text Visibility
+    textOutlineEnabled: boolean;
+    textOutlineColor: string; // e.g., 'black' or hex
 
     // Badges
     showBadges: boolean;
@@ -97,45 +118,45 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                 filtered = filtered.filter(msg => !styles.ignoredUsers.includes(msg.user.toLowerCase()));
             }
 
-            if (styles.autoHideSeconds === 0) {
-                setVisibleMessages(filtered);
-                return;
+            // Auto-hide logic
+            if (styles.autoHideSeconds > 0) {
+                const now = Date.now();
+                filtered = filtered.filter(msg => now - msg.timestamp < styles.autoHideSeconds * 1000);
             }
 
-            const now = Date.now();
-            const limit = styles.autoHideSeconds * 1000;
-            setVisibleMessages(filtered.filter((msg) => (now - msg.timestamp) < limit));
+            // Limit max messages
+            if (styles.maxMessages > 0) {
+                filtered = filtered.slice(-styles.maxMessages);
+            }
+
+            setVisibleMessages(filtered);
         };
 
         updateVisibility();
-        if (styles.autoHideSeconds > 0) {
-            const interval = setInterval(updateVisibility, 1000);
-            return () => clearInterval(interval);
-        }
-    }, [messages, styles.autoHideSeconds, styles.ignoredUsers]);
+        const interval = setInterval(updateVisibility, 1000);
+        return () => clearInterval(interval);
+    }, [messages, styles.ignoredUsers, styles.autoHideSeconds, styles.maxMessages]);
 
-    // Helper to render message with emotes
+    // Helper to parse Twitch emotes
     const renderMessage = (msg: ChatMessageData) => {
         if (!msg.emotes) return msg.message;
 
-        // Create an array of text parts and emote parts
-        // Twitch emotes format: { "25": ["0-4", "12-16"] } where 25 is emote ID
-        const stringReplacements: { start: number; end: number; id: string }[] = [];
-
+        // Create a map of replacement ranges
+        const replacements: { start: number; end: number; id: string }[] = [];
         Object.entries(msg.emotes).forEach(([id, positions]) => {
             positions.forEach(pos => {
-                const [start, end] = pos.split("-").map(Number);
-                stringReplacements.push({ start, end: end + 1, id });
+                const [start, end] = pos.split('-').map(Number);
+                replacements.push({ start, end: end + 1, id });
             });
         });
 
         // Sort by start position
-        stringReplacements.sort((a, b) => a.start - b.start);
+        replacements.sort((a, b) => a.start - b.start);
 
         const nodes: React.ReactNode[] = [];
         let lastIndex = 0;
 
-        stringReplacements.forEach((replacement, i) => {
+        replacements.forEach((replacement, i) => {
             // Push text before the emote
             if (replacement.start > lastIndex) {
                 nodes.push(msg.message.substring(lastIndex, replacement.start));
@@ -175,7 +196,7 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
             position: "absolute",
             width: `${styles.width}px`,
             height: `${styles.height}px`,
-            padding: "16px",
+            padding: `${styles.containerPadding ?? 16}px`,
             display: "flex",
             overflow: "hidden", // Hide messages outside the box
         };
@@ -225,12 +246,56 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
         return variants;
     };
 
+    // Helper to determine background color based on mode
+    const getMessageBackground = (msg: ChatMessageData, index: number) => {
+        // 1. Background Image overrides everything IF mode is image
+        if (styles.msgBgMode === 'image' && styles.backgroundImage) return 'transparent';
+
+        let color = styles.backgroundColor; // Default to solid/base color
+
+        // 2. Handle Modes
+        if (styles.msgBgMode === 'cycle' && styles.msgBgCycleColors?.length > 0) {
+            // Determine effective cycle length based on limit (2 or 3)
+            const limit = styles.msgBgCycleCount ?? 3;
+            const cycleColors = styles.msgBgCycleColors.slice(0, limit);
+            color = cycleColors[index % cycleColors.length];
+        } else if (styles.msgBgMode === 'role' && styles.msgBgRoleColors) {
+            // Fallback to viewer if no specific badge matches or if badges are empty
+            // Logic: Check top role down to viewer
+            if (msg.badges?.broadcaster) color = styles.msgBgRoleColors.broadcaster;
+            else if (msg.badges?.moderator) color = styles.msgBgRoleColors.moderator;
+            else if (msg.badges?.vip) color = styles.msgBgRoleColors.vip;
+            else if (msg.badges?.subscriber) color = styles.msgBgRoleColors.subscriber;
+            else color = styles.msgBgRoleColors.viewer;
+        } else if (styles.msgBgMode === 'pride') {
+            const rainbow = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
+            color = rainbow[index % rainbow.length];
+        }
+
+        return hexToRgba(color, styles.bgOpacity ?? 100);
+    };
+
+    // Helper for Text Outline
+    const getTextOutlineStyle = () => {
+        if (!styles.textOutlineEnabled) return {};
+        const c = styles.textOutlineColor || '#000000';
+        return {
+            textShadow: `
+                -1px -1px 0 ${c},  
+                 1px -1px 0 ${c},
+                -1px  1px 0 ${c},
+                 1px  1px 0 ${c}
+            `
+        };
+    };
+
     const variants = getVariants();
+    const textOutlineStyle = getTextOutlineStyle();
 
     return (
         <div style={getPositionStyles()}>
             <AnimatePresence mode="popLayout">
-                {visibleMessages.map((msg) => {
+                {visibleMessages.map((msg, index) => {
                     const accent = styles.useUserColorForAccent
                         ? (msg.color || styles.accentColor)
                         : styles.accentColor;
@@ -249,7 +314,10 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                             transition={{ duration: 0.3 }}
                             className="shadow-sm backdrop-blur-md relative"
                             style={{
-                                backgroundColor: hexToRgba(styles.backgroundColor, styles.bgOpacity ?? 100),
+                                backgroundColor: getMessageBackground(msg, index),
+                                backgroundImage: styles.backgroundImage ? `url(${styles.backgroundImage})` : undefined,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
                                 borderTopLeftRadius: `${styles.borderRadiusTL ?? styles.borderRadius}px`,
                                 borderTopRightRadius: `${styles.borderRadiusTR ?? styles.borderRadius}px`,
                                 borderBottomLeftRadius: `${styles.borderRadiusBL ?? styles.borderRadius}px`,
@@ -265,6 +333,7 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                     fontFamily: styles.fontFamily,
                                     fontSize: `${styles.fontSize * 0.9}px`,
                                     color: nameColor,
+                                    ...textOutlineStyle,
                                 }}
                             >
                                 {msg.badges && styles.showBadges && Object.entries(msg.badges).map(([key, value]) => {
@@ -303,8 +372,13 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                             </div>
                             {styles.showTimestamp && (
                                 <span
-                                    className="absolute top-2 right-2 opacity-50 font-mono"
-                                    style={{ fontSize: '0.7em', color: styles.textColor }}
+                                    className="absolute top-2 right-2 font-mono"
+                                    style={{
+                                        fontSize: `${styles.timestampFontSize ?? 12}px`,
+                                        color: styles.timestampColor ?? styles.textColor,
+                                        fontWeight: styles.timestampIsBold ? 700 : 400,
+                                        opacity: 0.7
+                                    }}
                                 >
                                     {formatTime(msg.timestamp)}
                                 </span>
@@ -316,7 +390,7 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                     fontSize: `${styles.fontSize}px`,
                                     color: styles.textColor,
                                     fontWeight: styles.isBold ? 700 : 400,
-                                    textShadow: '0px 1px 2px rgba(0,0,0,0.8)'
+                                    ...textOutlineStyle
                                 }}
                             >
                                 {renderMessage(msg)}

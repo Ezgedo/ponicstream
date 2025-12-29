@@ -12,7 +12,8 @@ const DEFAULT_STYLES: ChatStyles = {
     fontSize: 16,
     isBold: false,
     textColor: "#ffffff",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "#000000",
+    backgroundImage: "",
     accentColor: "#a855f7",
     useUserColorForAccent: false,
     useUserColorForName: true,
@@ -23,15 +24,35 @@ const DEFAULT_STYLES: ChatStyles = {
     direction: "down",
     maxMessages: 50,
     showTimestamp: false,
+    timestampColor: "#999999",
+    timestampFontSize: 12,
+    timestampIsBold: false,
 
     // Advanced Styling
     padding: 12,
+    containerPadding: 16,
     margin: 8,
     bgOpacity: 70, // Percent in UI, converted to 0-1 logic later but interface says 0-100
     borderRadiusTL: 8,
     borderRadiusTR: 8,
     borderRadiusBL: 8,
     borderRadiusBR: 8,
+
+    // Background Modes
+    msgBgMode: 'solid',
+    msgBgCycleColors: ['#FF0000', '#00FF00', '#0000FF'],
+    msgBgCycleCount: 3,
+    msgBgRoleColors: {
+        broadcaster: '#FFD700',
+        moderator: '#00E676',
+        vip: '#E040FB',
+        subscriber: '#651FFF',
+        viewer: '#757575',
+    },
+
+    // Text Visibility
+    textOutlineEnabled: false,
+    textOutlineColor: '#000000',
 
     // Badges
     showBadges: true,
@@ -56,6 +77,25 @@ export default function DashboardPage() {
     const [styles, setStyles] = useState<ChatStyles>(DEFAULT_STYLES);
     const [isSaved, setIsSaved] = useState(false);
     const [activeTab, setActiveTab] = useState<"layout" | "appearance" | "behavior">("appearance");
+
+    // Accordion State
+    const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+        typography: false,
+        colors: false,
+        timestamp: false,
+        spacing: false,
+        badges: false,
+        moderation: false,
+        animations: false,
+        visibility: false,
+        dimensions: false,
+        screenPos: false,
+        flow: false
+    });
+
+    const toggleSection = (section: string) => {
+        setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // Preview Messages State
     const [previewMessages, setPreviewMessages] = useState<ChatMessageData[]>([]);
@@ -97,8 +137,14 @@ export default function DashboardPage() {
         const saved = localStorage.getItem("chatStyles");
         if (saved) {
             try {
-                // Merge saved styles with default in case of new fields
-                setStyles((prev) => ({ ...DEFAULT_STYLES, ...JSON.parse(saved) }));
+                const parsed = JSON.parse(saved);
+                setStyles((prev) => ({
+                    ...prev,
+                    ...parsed,
+                    // Ensure deep merge for nested objects like msgBgRoleColors
+                    msgBgRoleColors: { ...DEFAULT_STYLES.msgBgRoleColors, ...(parsed.msgBgRoleColors || {}) },
+                    badgeStyles: { ...DEFAULT_STYLES.badgeStyles, ...(parsed.badgeStyles || {}) },
+                }));
             } catch (e) {
                 console.error("Failed to parse saved styles", e);
             }
@@ -129,19 +175,13 @@ export default function DashboardPage() {
     };
 
     const handleCopyUrl = () => {
-        const params = new URLSearchParams();
-        (Object.keys(styles) as Array<keyof ChatStyles>).forEach(key => {
-            if (typeof styles[key] !== 'object') {
-                params.append(key, String(styles[key]));
-            }
-        });
+        const url = new URL(`${window.location.origin}/overlay/chat`);
         if (session?.user?.name) {
-            params.append("channel", session.user.name);
+            url.searchParams.append("channel", session.user.name);
         }
 
-        const url = `${window.location.origin}/overlay/chat?${params.toString()}`;
-        navigator.clipboard.writeText(url);
-        alert("Overlay URL copied. Note: Complex settings rely on LocalStorage usage or clicking 'Save' first.");
+        navigator.clipboard.writeText(url.toString());
+        alert("Overlay URL copied! Styles will be loaded from Local Storage (remember to click Save).");
     };
 
     if (status === "loading") return <div className="text-white p-10">Loading...</div>;
@@ -211,158 +251,371 @@ export default function DashboardPage() {
                         </button>
                     </div>
 
-                    <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
+                    <div className="p-6 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
                         {/* APPEARANCE TAB */}
                         {activeTab === "appearance" && (
-                            <div className="space-y-6 animate-in slide-in-from-left-4 fade-in duration-300">
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">Typography</h3>
+                            <div className="space-y-2 animate-in slide-in-from-left-4 fade-in duration-300">
+                                {/* Typography Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('typography')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Typography
+                                        {openSections.typography ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
 
-                                    {/* Font Family */}
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-400">Font Family</label>
-                                        <select value={styles.fontFamily} onChange={(e) => setStyles({ ...styles, fontFamily: e.target.value })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
-                                            <option value="Inter, sans-serif">Inter</option>
-                                            <option value="'Courier New', monospace">Courier New</option>
-                                            <option value="'Times New Roman', serif">Times New Roman</option>
-                                            <option value="'Arial', sans-serif">Arial</option>
-                                            <option value="'Brush Script MT', cursive">Brush Script</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="flex gap-4">
-                                        {/* Font Size */}
-                                        <div className="space-y-1 flex-1">
-                                            <label className="text-xs text-gray-400">Size ({styles.fontSize}px)</label>
-                                            <input type="range" min="10" max="40" value={styles.fontSize} onChange={(e) => setStyles({ ...styles, fontSize: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                        </div>
-                                        {/* Font Weight */}
-                                        <div className="space-y-1 flex items-center pt-4">
-                                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                                <input type="checkbox" checked={styles.isBold} onChange={(e) => setStyles({ ...styles, isBold: e.target.checked })} className="accent-purple-500 w-4 h-4" />
-                                                Bold Text
-                                            </label>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Colors</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Text Color</label>
-                                            <input type="color" value={styles.textColor} onChange={(e) => setStyles({ ...styles, textColor: e.target.value })} className="w-full h-8 rounded bg-transparent cursor-pointer" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Background</label>
-                                            <input type="color" value={styles.backgroundColor.startsWith("#") ? styles.backgroundColor : "#000000"} onChange={(e) => setStyles({ ...styles, backgroundColor: e.target.value })} className="w-full h-8 rounded bg-transparent cursor-pointer" />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-400">Background Opacity ({styles.bgOpacity ?? 70}%)</label>
-                                        <input type="range" min="0" max="100" value={styles.bgOpacity ?? 70} onChange={(e) => setStyles({ ...styles, bgOpacity: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                    </div>
-
-                                    <div className="p-3 bg-neutral-800 rounded-lg space-y-3 border border-white/5">
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Accent Color</label>
-                                            <div className="flex items-center gap-2">
-                                                <input type="color" value={styles.accentColor} onChange={(e) => setStyles({ ...styles, accentColor: e.target.value })} className="h-8 w-12 rounded bg-transparent cursor-pointer" />
-                                                <span className="text-xs text-gray-500">{styles.accentColor}</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                                                <input type="checkbox" checked={styles.useUserColorForAccent} onChange={(e) => setStyles({ ...styles, useUserColorForAccent: e.target.checked })} className="accent-purple-500" />
-                                                Use Twitch User Color for Border
-                                            </label>
-                                            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                                                <input type="checkbox" checked={styles.useUserColorForName} onChange={(e) => setStyles({ ...styles, useUserColorForName: e.target.checked })} className="accent-purple-500" />
-                                                Use Twitch User Color for Name
-                                            </label>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Spacing & shape</h3>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Padding ({styles.padding ?? 12}px)</label>
-                                            <input type="range" min="0" max="40" value={styles.padding ?? 12} onChange={(e) => setStyles({ ...styles, padding: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Margin ({styles.margin ?? 8}px)</label>
-                                            <input type="range" min="0" max="40" value={styles.margin ?? 8} onChange={(e) => setStyles({ ...styles, margin: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-xs text-gray-400">Border Radius (Corners)</label>
-                                            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                                                <input type="checkbox" checked={linkCorners} onChange={(e) => setLinkCorners(e.target.checked)} className="accent-purple-500" />
-                                                Link All Corners
-                                            </label>
-                                        </div>
-
-                                        {linkCorners ? (
+                                    {openSections.typography && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            {/* Font Family */}
                                             <div className="space-y-1">
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="40"
-                                                    value={styles.borderRadius}
-                                                    onChange={(e) => {
-                                                        const val = Number(e.target.value);
-                                                        setStyles({
-                                                            ...styles,
-                                                            borderRadius: val,
-                                                            borderRadiusTL: val,
-                                                            borderRadiusTR: val,
-                                                            borderRadiusBL: val,
-                                                            borderRadiusBR: val
-                                                        });
-                                                    }}
-                                                    className="w-full accent-purple-500"
-                                                />
-                                                <div className="text-right text-[10px] text-gray-500">{styles.borderRadius}px</div>
+                                                <label className="text-xs text-gray-400">Font Family</label>
+                                                <select value={styles.fontFamily} onChange={(e) => setStyles({ ...styles, fontFamily: e.target.value })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
+                                                    <option value="Inter, sans-serif">Inter</option>
+                                                    <option value="'Courier New', monospace">Courier New</option>
+                                                    <option value="'Times New Roman', serif">Times New Roman</option>
+                                                    <option value="'Arial', sans-serif">Arial</option>
+                                                    <option value="'Brush Script MT', cursive">Brush Script</option>
+                                                </select>
                                             </div>
-                                        ) : (
+
+                                            <div className="flex gap-4">
+                                                {/* Font Size */}
+                                                <div className="space-y-1 flex-1">
+                                                    <label className="text-xs text-gray-400">Size ({styles.fontSize}px)</label>
+                                                    <input type="range" min="10" max="40" value={styles.fontSize} onChange={(e) => setStyles({ ...styles, fontSize: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                </div>
+                                                {/* Font Weight */}
+                                                <div className="space-y-1 flex items-center pt-4">
+                                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input type="checkbox" checked={styles.isBold} onChange={(e) => setStyles({ ...styles, isBold: e.target.checked })} className="accent-purple-500 w-4 h-4" />
+                                                        Bold Text
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {/* Text Outline */}
+                                            <div className="pt-2 border-t border-white/5 space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={styles.textOutlineEnabled ?? false}
+                                                            onChange={(e) => setStyles({ ...styles, textOutlineEnabled: e.target.checked })}
+                                                            className="accent-purple-500"
+                                                        />
+                                                        Text Outline (Stroke)
+                                                    </label>
+                                                    {styles.textOutlineEnabled && (
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="color"
+                                                                value={styles.textOutlineColor ?? "#000000"}
+                                                                onChange={(e) => setStyles({ ...styles, textOutlineColor: e.target.value })}
+                                                                className="h-6 w-8 rounded bg-transparent cursor-pointer"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Colors Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('colors')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Colors
+                                        {openSections.colors ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.colors && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] text-gray-500 flex justify-between">Top Left <span>{styles.borderRadiusTL ?? styles.borderRadius}px</span></label>
-                                                    <input type="range" min="0" max="40" value={styles.borderRadiusTL ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusTL: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                    <label className="text-xs text-gray-400">Text Color</label>
+                                                    <input type="color" value={styles.textColor} onChange={(e) => setStyles({ ...styles, textColor: e.target.value })} className="w-full h-8 rounded bg-transparent cursor-pointer" />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] text-gray-500 flex justify-between">Top Right <span>{styles.borderRadiusTR ?? styles.borderRadius}px</span></label>
-                                                    <input type="range" min="0" max="40" value={styles.borderRadiusTR ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusTR: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] text-gray-500 flex justify-between">Bottom Left <span>{styles.borderRadiusBL ?? styles.borderRadius}px</span></label>
-                                                    <input type="range" min="0" max="40" value={styles.borderRadiusBL ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusBL: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] text-gray-500 flex justify-between">Bottom Right <span>{styles.borderRadiusBR ?? styles.borderRadius}px</span></label>
-                                                    <input type="range" min="0" max="40" value={styles.borderRadiusBR ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusBR: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                    <label className="text-xs text-gray-400">Accent Color</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={styles.accentColor} onChange={(e) => setStyles({ ...styles, accentColor: e.target.value })} className="h-8 w-full rounded bg-transparent cursor-pointer" />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-                                </section>
 
-                                <section className="space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">User Badges</h3>
-                                        <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                                            <input type="checkbox" checked={styles.showBadges ?? true} onChange={(e) => setStyles({ ...styles, showBadges: e.target.checked })} className="accent-purple-500" />
-                                            Enable
-                                        </label>
-                                    </div>
+                                            <div className="flex flex-col gap-2 p-2 bg-neutral-800 rounded border border-white/5">
+                                                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                    <input type="checkbox" checked={styles.useUserColorForAccent} onChange={(e) => setStyles({ ...styles, useUserColorForAccent: e.target.checked })} className="accent-purple-500" />
+                                                    Use Twitch User Color for Border
+                                                </label>
+                                                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                    <input type="checkbox" checked={styles.useUserColorForName} onChange={(e) => setStyles({ ...styles, useUserColorForName: e.target.checked })} className="accent-purple-500" />
+                                                    Use Twitch User Color for Name
+                                                </label>
+                                            </div>
 
-                                    {styles.showBadges && (
-                                        <div className="space-y-2 bg-neutral-800 p-3 rounded-lg border border-white/5">
+                                            {/* Background Mode Selector */}
+                                            <div className="space-y-2 pt-2 border-t border-white/5">
+                                                <label className="text-xs text-gray-400 block">Message Background Mode</label>
+                                                <select
+                                                    value={styles.msgBgMode || 'solid'}
+                                                    onChange={(e) => setStyles({ ...styles, msgBgMode: e.target.value as any })}
+                                                    className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10"
+                                                >
+                                                    <option value="solid">Solid Color</option>
+                                                    <option value="image">Image (URL)</option>
+                                                    <option value="cycle">Cycle (Multi-Color)</option>
+                                                    <option value="role">Role Based</option>
+                                                    <option value="pride">Pride (Rainbow)</option>
+                                                </select>
+
+                                                {/* Solid Mode Config */}
+                                                {styles.msgBgMode === 'solid' && (
+                                                    <div className="space-y-1 mt-2">
+                                                        <label className="text-xs text-gray-400">Background Color</label>
+                                                        <input
+                                                            type="color"
+                                                            value={styles.backgroundColor.startsWith("#") ? styles.backgroundColor : "#000000"}
+                                                            onChange={(e) => setStyles({ ...styles, backgroundColor: e.target.value })}
+                                                            className="w-full h-8 rounded bg-transparent cursor-pointer"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Image Mode Config */}
+                                                {styles.msgBgMode === 'image' && (
+                                                    <div className="space-y-1 mt-2">
+                                                        <label className="text-xs text-gray-400">Image URL</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="https://..."
+                                                            value={styles.backgroundImage || ''}
+                                                            onChange={(e) => setStyles({ ...styles, backgroundImage: e.target.value })}
+                                                            className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10 placeholder:text-gray-600 focus:border-purple-500 outline-none"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Cycle Mode Config */}
+                                                {styles.msgBgMode === 'cycle' && (
+                                                    <div className="space-y-2 mt-2">
+                                                        <div className="flex bg-neutral-800 p-1 rounded border border-white/5">
+                                                            <button
+                                                                onClick={() => setStyles({ ...styles, msgBgCycleCount: 2 })}
+                                                                className={`flex-1 text-[10px] py-1 rounded transition-colors ${styles.msgBgCycleCount === 2 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                                            >
+                                                                2 Colors
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setStyles({ ...styles, msgBgCycleCount: 3 })}
+                                                                className={`flex-1 text-[10px] py-1 rounded transition-colors ${(styles.msgBgCycleCount ?? 3) === 3 ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                                            >
+                                                                3 Colors
+                                                            </button>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {[0, 1, 2].map((i) => {
+                                                                const limit = styles.msgBgCycleCount ?? 3;
+                                                                if (i >= limit) return null;
+                                                                return (
+                                                                    <div key={i} className="space-y-1">
+                                                                        <label className="text-[10px] text-gray-500">Color {i + 1}</label>
+                                                                        <input
+                                                                            type="color"
+                                                                            value={styles.msgBgCycleColors?.[i] || '#ffffff'}
+                                                                            onChange={(e) => {
+                                                                                const newColors = [...(styles.msgBgCycleColors || [])];
+                                                                                newColors[i] = e.target.value;
+                                                                                setStyles({ ...styles, msgBgCycleColors: newColors });
+                                                                            }}
+                                                                            className="w-full h-8 rounded bg-transparent cursor-pointer"
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Role Color Config */}
+                                                {styles.msgBgMode === 'role' && (
+                                                    <div className="space-y-2 mt-2">
+                                                        {Object.entries(styles.msgBgRoleColors || DEFAULT_STYLES.msgBgRoleColors || {}).map(([role, color]) => (
+                                                            <div key={role} className="flex justify-between items-center text-xs">
+                                                                <span className="capitalize text-gray-400">{role}</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="color"
+                                                                        value={color}
+                                                                        onChange={(e) => {
+                                                                            setStyles({
+                                                                                ...styles,
+                                                                                msgBgRoleColors: { ...(styles.msgBgRoleColors || DEFAULT_STYLES.msgBgRoleColors), [role]: e.target.value }
+                                                                            });
+                                                                        }}
+                                                                        className="h-6 w-8 rounded bg-transparent cursor-pointer"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {styles.msgBgMode === 'pride' && (
+                                                    <p className="text-[10px] text-purple-400 mt-1 italic">
+                                                        Rainbow colors will cycle through messages automatically! 🌈
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-1 pt-2 border-t border-white/5">
+                                                <label className="text-xs text-gray-400">Background Opacity ({styles.bgOpacity ?? 70}%)</label>
+                                                <input type="range" min="0" max="100" value={styles.bgOpacity ?? 70} onChange={(e) => setStyles({ ...styles, bgOpacity: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Timestamp Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('timestamp')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Timestamp
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={styles.showTimestamp ?? false}
+                                                onChange={(e) => { e.stopPropagation(); setStyles({ ...styles, showTimestamp: e.target.checked }); }}
+                                                className="accent-purple-500 w-4 h-4 cursor-pointer"
+                                            />
+                                            {openSections.timestamp ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                        </div>
+                                    </button>
+
+                                    {openSections.timestamp && styles.showTimestamp && (
+                                        <div className="p-4 border-t border-white/5 space-y-2 bg-neutral-800/50">
+                                            <div className="flex gap-4">
+                                                <div className="space-y-1 flex-1">
+                                                    <label className="text-xs text-gray-400">Size ({styles.timestampFontSize ?? 12}px)</label>
+                                                    <input type="range" min="8" max="24" value={styles.timestampFontSize ?? 12} onChange={(e) => setStyles({ ...styles, timestampFontSize: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-xs text-gray-400">Color</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="color" value={styles.timestampColor ?? "#999999"} onChange={(e) => setStyles({ ...styles, timestampColor: e.target.value })} className="h-8 w-12 rounded bg-transparent cursor-pointer" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="pt-2">
+                                                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                    <input type="checkbox" checked={styles.timestampIsBold ?? false} onChange={(e) => setStyles({ ...styles, timestampIsBold: e.target.checked })} className="accent-purple-500" />
+                                                    Bold Timestamp
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Spacing & Shape Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('spacing')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Spacing & Shape
+                                        {openSections.spacing ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.spacing && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-xs text-gray-400">Message Padding ({styles.padding ?? 12}px)</label>
+                                                    <input type="range" min="0" max="40" value={styles.padding ?? 12} onChange={(e) => setStyles({ ...styles, padding: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <label className="text-xs text-gray-400">Border Radius ({linkCorners ? `${styles.borderRadius}px` : "Custom"})</label>
+                                                    <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                                        <input type="checkbox" checked={linkCorners} onChange={(e) => setLinkCorners(e.target.checked)} className="accent-purple-500" />
+                                                        Link All Corners
+                                                    </label>
+                                                </div>
+
+                                                {linkCorners ? (
+                                                    <div className="space-y-1">
+                                                        <input
+                                                            type="range"
+                                                            min="0"
+                                                            max="40"
+                                                            value={styles.borderRadius}
+                                                            onChange={(e) => {
+                                                                const val = Number(e.target.value);
+                                                                setStyles({
+                                                                    ...styles,
+                                                                    borderRadius: val,
+                                                                    borderRadiusTL: val,
+                                                                    borderRadiusTR: val,
+                                                                    borderRadiusBL: val,
+                                                                    borderRadiusBR: val
+                                                                });
+                                                            }}
+                                                            className="w-full accent-purple-500"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] text-gray-500 flex justify-between">Top Left <span>{styles.borderRadiusTL ?? styles.borderRadius}px</span></label>
+                                                            <input type="range" min="0" max="40" value={styles.borderRadiusTL ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusTL: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] text-gray-500 flex justify-between">Top Right <span>{styles.borderRadiusTR ?? styles.borderRadius}px</span></label>
+                                                            <input type="range" min="0" max="40" value={styles.borderRadiusTR ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusTR: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] text-gray-500 flex justify-between">Bottom Left <span>{styles.borderRadiusBL ?? styles.borderRadius}px</span></label>
+                                                            <input type="range" min="0" max="40" value={styles.borderRadiusBL ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusBL: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] text-gray-500 flex justify-between">Bottom Right <span>{styles.borderRadiusBR ?? styles.borderRadius}px</span></label>
+                                                            <input type="range" min="0" max="40" value={styles.borderRadiusBR ?? styles.borderRadius} onChange={(e) => setStyles({ ...styles, borderRadiusBR: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* User Badges Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('badges')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        User Badges
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={styles.showBadges ?? true}
+                                                onChange={(e) => { e.stopPropagation(); setStyles({ ...styles, showBadges: e.target.checked }); }}
+                                                className="accent-purple-500 w-4 h-4 cursor-pointer"
+                                            />
+                                            {openSections.badges ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                        </div>
+                                    </button>
+
+                                    {openSections.badges && styles.showBadges && (
+                                        <div className="p-4 border-t border-white/5 space-y-2 bg-neutral-800/50">
                                             {Object.entries(styles.badgeStyles || {}).map(([role, conf]) => (
                                                 <div key={role} className="flex flex-col gap-2 border-b border-white/5 pb-2 last:border-0 last:pb-0">
                                                     <div className="flex items-center justify-between">
@@ -421,128 +674,214 @@ export default function DashboardPage() {
                                             ))}
                                         </div>
                                     )}
-                                </section>
+                                </div>
                             </div>
                         )}
 
                         {/* LAYOUT TAB */}
                         {activeTab === "layout" && (
-                            <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">Flow Direction</h3>
-                                    <div className="flex bg-neutral-800 p-1 rounded-lg border border-white/5">
-                                        <button
-                                            onClick={() => setStyles({ ...styles, direction: 'down' })}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.direction === 'down' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
-                                        >
-                                            <ArrowDown size={14} /> Normal (Down)
-                                        </button>
-                                        <button
-                                            onClick={() => setStyles({ ...styles, direction: 'up' })}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.direction === 'up' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
-                                        >
-                                            <ArrowUp size={14} /> Reversed (Up)
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-500">
-                                        <strong>Normal:</strong> New messages appear at the bottom.<br />
-                                        <strong>Reversed:</strong> New messages appear at the top.
-                                    </p>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dimensions</h3>
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-400">Width ({styles.width}px)</label>
-                                        <input type="range" min="200" max="800" step="10" value={styles.width} onChange={(e) => setStyles({ ...styles, width: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-400">Height ({styles.height}px)</label>
-                                        <input type="range" min="200" max="1000" step="10" value={styles.height} onChange={(e) => setStyles({ ...styles, height: Number(e.target.value) })} className="w-full accent-purple-500" />
-                                    </div>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Screen Position</h3>
-                                    <div className="grid grid-cols-3 gap-2 bg-neutral-800 p-2 rounded-lg border border-white/5">
-                                        {["top-left", "top-center", "top-right", "center-left", "", "center-right", "bottom-left", "bottom-center", "bottom-right"].map((pos, i) => (
-                                            pos ? (
+                            <div className="space-y-2 animate-in slide-in-from-right-4 fade-in duration-300">
+                                {/* Flow Direction Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('flow')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Flow Direction
+                                        {openSections.flow ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+                                    {openSections.flow && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="flex bg-neutral-800 p-1 rounded-lg border border-white/5">
                                                 <button
-                                                    key={pos}
-                                                    onClick={() => setStyles({ ...styles, position: pos as any })}
-                                                    className={`aspect-square rounded border transition-all ${styles.position === pos ? "bg-purple-600 border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]" : "bg-neutral-700 border-neutral-600 hover:bg-neutral-600"}`}
-                                                    title={pos}
-                                                />
-                                            ) : <div key={i} />
-                                        ))}
-                                    </div>
-                                    <p className="text-xs text-center text-gray-500">Click a square to anchor the chat box.</p>
-                                </section>
+                                                    onClick={() => setStyles({ ...styles, direction: 'down' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.direction === 'down' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
+                                                >
+                                                    <ArrowDown size={14} /> Normal (Down)
+                                                </button>
+                                                <button
+                                                    onClick={() => setStyles({ ...styles, direction: 'up' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.direction === 'up' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
+                                                >
+                                                    <ArrowUp size={14} /> Reversed (Up)
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-gray-500">
+                                                <strong>Normal:</strong> New messages appear at the bottom.<br />
+                                                <strong>Reversed:</strong> New messages appear at the top.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Dimensions Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('dimensions')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Dimensions
+                                        {openSections.dimensions ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.dimensions && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">Width ({styles.width}px)</label>
+                                                <input type="range" min="200" max="800" step="10" value={styles.width} onChange={(e) => setStyles({ ...styles, width: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">Height ({styles.height}px)</label>
+                                                <input type="range" min="200" max="1000" step="10" value={styles.height} onChange={(e) => setStyles({ ...styles, height: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Spacing Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('spacing')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Spacing
+                                        {openSections.spacing ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.spacing && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-xs text-gray-400">Container Padding ({styles.containerPadding ?? 16}px)</label>
+                                                    <input type="range" min="0" max="60" value={styles.containerPadding ?? 16} onChange={(e) => setStyles({ ...styles, containerPadding: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-xs text-gray-400">Message Separation ({styles.margin ?? 8}px)</label>
+                                                    <input type="range" min="0" max="40" value={styles.margin ?? 8} onChange={(e) => setStyles({ ...styles, margin: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Screen Position Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('screenPos')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Screen Position
+                                        {openSections.screenPos ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.screenPos && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="grid grid-cols-3 gap-2 bg-neutral-800 p-2 rounded-lg border border-white/5">
+                                                {["top-left", "top-center", "top-right", "center-left", "", "center-right", "bottom-left", "bottom-center", "bottom-right"].map((pos, i) => (
+                                                    pos ? (
+                                                        <button
+                                                            key={pos}
+                                                            onClick={() => setStyles({ ...styles, position: pos as any })}
+                                                            className={`aspect-square rounded border transition-all ${styles.position === pos ? "bg-purple-600 border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)]" : "bg-neutral-700 border-neutral-600 hover:bg-neutral-600"}`}
+                                                            title={pos}
+                                                        />
+                                                    ) : <div key={i} />
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-center text-gray-500">Click a square to anchor the chat box.</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 
                         {/* BEHAVIOR TAB */}
                         {activeTab === "behavior" && (
-                            <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Visibility & Testing</h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Auto-hide Messages (Seconds)</label>
-                                            <div className="flex items-center gap-4">
-                                                <input type="range" min="0" max="60" value={styles.autoHideSeconds} onChange={(e) => setStyles({ ...styles, autoHideSeconds: Number(e.target.value) })} className="flex-1 accent-purple-500" />
-                                                <span className="text-sm font-mono w-12 text-right">{styles.autoHideSeconds > 0 ? `${styles.autoHideSeconds}s` : "Never"}</span>
+                            <div className="space-y-2 animate-in slide-in-from-right-4 fade-in duration-300">
+                                {/* Visibility & Testing Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('visibility')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Visibility & Testing
+                                        {openSections.visibility ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.visibility && (
+                                        <div className="p-4 border-t border-white/5 space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">Auto-hide Messages (Seconds)</label>
+                                                <div className="flex items-center gap-4">
+                                                    <input type="range" min="0" max="60" value={styles.autoHideSeconds} onChange={(e) => setStyles({ ...styles, autoHideSeconds: Number(e.target.value) })} className="flex-1 accent-purple-500" />
+                                                    <span className="text-sm font-mono w-12 text-right">{styles.autoHideSeconds > 0 ? `${styles.autoHideSeconds}s` : "Never"}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">Max Messages ({styles.maxMessages || 50})</label>
+                                                <input type="range" min="5" max="100" step="5" value={styles.maxMessages || 50} onChange={(e) => setStyles({ ...styles, maxMessages: Number(e.target.value) })} className="w-full accent-purple-500" />
                                             </div>
                                         </div>
+                                    )}
+                                </div>
 
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Max Messages ({styles.maxMessages || 50})</label>
-                                            <input type="range" min="5" max="100" step="5" value={styles.maxMessages || 50} onChange={(e) => setStyles({ ...styles, maxMessages: Number(e.target.value) })} className="w-full accent-purple-500" />
+                                {/* Moderation Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('moderation')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Moderation
+                                        {openSections.moderation ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.moderation && (
+                                        <div className="p-4 border-t border-white/5 space-y-1">
+                                            <label className="text-xs text-gray-400">Ignored Users (one per line)</label>
+                                            <textarea
+                                                value={styles.ignoredUsers?.join('\n') || ''}
+                                                onChange={(e) => setStyles({ ...styles, ignoredUsers: e.target.value.split('\n').map(s => s.trim()).filter(s => s) })}
+                                                className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10 h-24"
+                                                placeholder="StreamElements&#10;Nightbot"
+                                            />
                                         </div>
+                                    )}
+                                </div>
 
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                                                <input type="checkbox" checked={styles.showTimestamp ?? false} onChange={(e) => setStyles({ ...styles, showTimestamp: e.target.checked })} className="accent-purple-500 w-4 h-4" />
-                                                Show Timestamp (HH:MM)
-                                            </label>
+                                {/* Animations Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('animations')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Animations
+                                        {openSections.animations ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.animations && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400">Entry Effect</label>
+                                                <select value={styles.animationEntry} onChange={(e) => setStyles({ ...styles, animationEntry: e.target.value as any })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
+                                                    <option value="fade">Fade In</option>
+                                                    <option value="slide-up">Slide Up</option>
+                                                    <option value="slide-left">Slide Left</option>
+                                                    <option value="scale">Scale Up</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400">Exit Effect</label>
+                                                <select value={styles.animationExit} onChange={(e) => setStyles({ ...styles, animationExit: e.target.value as any })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
+                                                    <option value="fade">Fade Out</option>
+                                                    <option value="slide-down">Slide Down</option>
+                                                    <option value="slide-right">Slide Right</option>
+                                                    <option value="scale">Scale Down</option>
+                                                </select>
+                                            </div>
                                         </div>
-                                    </div>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Moderation</h3>
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-400">Ignored Users (one per line)</label>
-                                        <textarea
-                                            value={styles.ignoredUsers?.join('\n') || ''}
-                                            onChange={(e) => setStyles({ ...styles, ignoredUsers: e.target.value.split('\n').map(s => s.trim()).filter(s => s) })}
-                                            className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10 h-24"
-                                            placeholder="StreamElements&#10;Nightbot"
-                                        />
-                                    </div>
-                                </section>
-
-                                <section className="space-y-3">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Animations</h3>
-                                    <div className="space-y-2">
-                                        <label className="text-xs text-gray-400">Entry Effect</label>
-                                        <select value={styles.animationEntry} onChange={(e) => setStyles({ ...styles, animationEntry: e.target.value as any })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
-                                            <option value="fade">Fade In</option>
-                                            <option value="slide-up">Slide Up</option>
-                                            <option value="slide-left">Slide Left</option>
-                                            <option value="scale">Scale Up</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs text-gray-400">Exit Effect</label>
-                                        <select value={styles.animationExit} onChange={(e) => setStyles({ ...styles, animationExit: e.target.value as any })} className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10">
-                                            <option value="fade">Fade Out</option>
-                                            <option value="slide-down">Slide Down</option>
-                                            <option value="slide-right">Slide Right</option>
-                                            <option value="scale">Scale Down</option>
-                                        </select>
-                                    </div>
-                                </section>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -556,29 +895,31 @@ export default function DashboardPage() {
                 </div>
 
                 {/* PREVIEW PANEL */}
-                {showPreview && (
-                    <div className="lg:col-span-2 bg-neutral-900 rounded-xl border border-white/5 flex flex-col p-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold flex items-center gap-2"><Activity size={18} className="text-purple-400" /> Live Preview</h2>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleSendTestMessage}
-                                    className="px-3 py-1.5 text-xs bg-neutral-800 hover:bg-neutral-700 rounded border border-white/10 flex items-center gap-2 transition-colors text-purple-300"
-                                >
-                                    <Play size={12} /> Send Test Message
-                                </button>
+                {
+                    showPreview && (
+                        <div className="lg:col-span-2 bg-neutral-900 rounded-xl border border-white/5 flex flex-col p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-semibold flex items-center gap-2"><Activity size={18} className="text-purple-400" /> Live Preview</h2>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleSendTestMessage}
+                                        className="px-3 py-1.5 text-xs bg-neutral-800 hover:bg-neutral-700 rounded border border-white/10 flex items-center gap-2 transition-colors text-purple-300"
+                                    >
+                                        <Play size={12} /> Send Test Message
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* The preview container represents the viewport (screen) */}
-                        <div className="flex-1 rounded-lg bg-[url('https://files.catbox.moe/3b5u4d.jpg')] bg-cover bg-center relative overflow-hidden shadow-2xl min-h-[500px] border border-white/10">
-                            <div className="absolute inset-0 bg-black/40"></div>
-                            <ChatPreview styles={styles} messages={previewMessages} />
+                            {/* The preview container represents the viewport (screen) */}
+                            <div className="flex-1 rounded-lg bg-[url('https://files.catbox.moe/3b5u4d.jpg')] bg-cover bg-center relative overflow-hidden shadow-2xl min-h-[500px] border border-white/10">
+                                <div className="absolute inset-0 bg-black/40"></div>
+                                <ChatPreview styles={styles} messages={previewMessages} />
+                            </div>
+                            <p className="text-xs text-center text-gray-600 mt-2">Background image is for preview purposes only.</p>
                         </div>
-                        <p className="text-xs text-center text-gray-600 mt-2">Background image is for preview purposes only.</p>
-                    </div>
-                )}
-            </div>
-        </div>
+                    )
+                }
+            </div >
+        </div >
     );
 }
