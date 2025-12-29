@@ -23,6 +23,7 @@ export interface ChatStyles {
     // Layout
     width: number;
     height: number;
+    messageLayout: 'block' | 'inline';
     position: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right" | "center-left" | "center-right";
     direction: "up" | "down";
     maxMessages: number;
@@ -61,10 +62,10 @@ export interface ChatStyles {
     // Badges
     showBadges: boolean;
     badgeStyles: {
-        broadcaster: { type: 'dot' | 'icon' | 'custom', color: string, customUrl?: string };
-        moderator: { type: 'dot' | 'icon' | 'custom', color: string, customUrl?: string };
-        vip: { type: 'dot' | 'icon' | 'custom', color: string, customUrl?: string };
-        subscriber: { type: 'dot' | 'icon' | 'custom', color: string, customUrl?: string };
+        broadcaster: { type: 'dot' | 'icon' | 'custom' | 'native', color: string, customUrl?: string };
+        moderator: { type: 'dot' | 'icon' | 'custom' | 'native', color: string, customUrl?: string };
+        vip: { type: 'dot' | 'icon' | 'custom' | 'native', color: string, customUrl?: string };
+        subscriber: { type: 'dot' | 'icon' | 'custom' | 'native', color: string, customUrl?: string };
     };
 
     // Moderation
@@ -371,74 +372,114 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                 marginBottom: `${styles.margin ?? 8}px`,
                             }}
                         >
-                            <div
-                                className="flex items-center gap-2 font-bold pr-8"
-                                style={{
-                                    fontFamily: styles.fontFamily,
-                                    fontSize: `${styles.fontSize * 0.9}px`,
-                                    color: nameColor,
-                                    ...textOutlineStyle,
-                                }}
-                            >
-                                {msg.badges && styles.showBadges && Object.entries(msg.badges).map(([key, value]) => {
-                                    const badgeKey = key as keyof typeof styles.badgeStyles;
-                                    const style = styles.badgeStyles?.[badgeKey];
-                                    if (!style) return null;
 
-                                    if (style.type === 'dot') {
-                                        return (
-                                            <span
-                                                key={key}
-                                                className="w-2 h-2 rounded-full inline-block"
-                                                style={{ backgroundColor: style.color }}
-                                                title={key}
-                                            />
-                                        );
-                                    } else if (style.type === 'custom' && style.customUrl) {
-                                        return (
-                                            <img
-                                                key={key}
-                                                src={style.customUrl}
-                                                alt={key}
-                                                className="w-4 h-4 object-contain"
-                                            />
-                                        );
-                                    } else {
-                                        // Default icons
-                                        return (
-                                            <span key={key} title={key}>
-                                                {key === 'broadcaster' ? '👑' : key === 'moderator' ? '⚔️' : key === 'vip' ? '💎' : '⭐'}
-                                            </span>
-                                        );
-                                    }
-                                })}
-                                {msg.user}
-                            </div>
-                            {styles.showTimestamp && (
-                                <span
-                                    className="absolute top-2 right-2 font-mono"
-                                    style={{
-                                        fontSize: `${styles.timestampFontSize ?? 12}px`,
-                                        color: styles.timestampColor ?? styles.textColor,
-                                        fontWeight: styles.timestampIsBold ? 700 : 400,
-                                        opacity: 0.7
-                                    }}
-                                >
-                                    {formatTime(msg.timestamp)}
-                                </span>
-                            )}
-                            <div
-                                className="break-words mt-1 leading-snug"
-                                style={{
-                                    fontFamily: styles.fontFamily,
-                                    fontSize: `${styles.fontSize}px`,
-                                    color: styles.textColor,
-                                    fontWeight: styles.isBold ? 700 : 400,
-                                    ...textOutlineStyle
-                                }}
-                            >
-                                {renderMessage(msg)}
-                            </div>
+                            {/* Layout Logic Refactor */}
+                            {(() => {
+                                const TimeComponent = styles.showTimestamp && (
+                                    <span
+                                        className={`${styles.messageLayout === 'inline' ? 'float-right ml-2' : ''} font-mono`}
+                                        style={{
+                                            fontSize: `${styles.timestampFontSize ?? 12}px`,
+                                            color: styles.timestampColor ?? styles.textColor,
+                                            fontWeight: styles.timestampIsBold ? 700 : 400,
+                                            opacity: 0.7
+                                        }}
+                                    >
+                                        {formatTime(msg.timestamp)}
+                                    </span>
+                                );
+
+                                return (
+                                    <div className="relative">
+                                        {/* Inline Mode: Time floats right, Name is inline */}
+                                        {styles.messageLayout === 'inline' && TimeComponent}
+
+                                        <div className={`${styles.messageLayout === 'inline' ? 'inline-flex mr-2' : 'flex justify-between'} items-baseline gap-2 font-bold`}
+                                            style={{
+                                                fontFamily: styles.fontFamily,
+                                                fontSize: `${styles.fontSize * 0.9}px`,
+                                                color: nameColor,
+                                                ...textOutlineStyle,
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {msg.badges && styles.showBadges && Object.entries(msg.badges).map(([key, value]) => {
+                                                    const badgeKey = key as keyof typeof styles.badgeStyles;
+                                                    const style = styles.badgeStyles?.[badgeKey];
+                                                    if (!style) return null;
+
+                                                    if (style.type === 'dot') {
+                                                        return (
+                                                            <span
+                                                                key={key}
+                                                                className="w-2 h-2 rounded-full inline-block"
+                                                                style={{ backgroundColor: style.color }}
+                                                                title={key}
+                                                            />
+                                                        );
+                                                    } else if (style.type === 'custom' && style.customUrl) {
+                                                        return (
+                                                            <img
+                                                                key={key}
+                                                                src={style.customUrl}
+                                                                alt={key}
+                                                                className="w-4 h-4 object-contain"
+                                                            />
+                                                        );
+                                                    } else if (style.type === 'native') {
+                                                        const nativeBadges: Record<string, string> = {
+                                                            broadcaster: 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/1',
+                                                            moderator: 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1',
+                                                            vip: 'https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1',
+                                                            staff: 'https://static-cdn.jtvnw.net/badges/v1/d97c37bd-a6f5-4c38-8f57-97339120495f/1',
+                                                            admin: 'https://static-cdn.jtvnw.net/badges/v1/9ef7e029-4ece-4d48-96a5-f9d75069b8c8/1',
+                                                            premium: 'https://static-cdn.jtvnw.net/badges/v1/a1dd5073-19c3-4911-8cb0-80d4b76c0353/1', // Prime
+                                                            turbo: 'https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-91f4-af1e3428d80f/1',
+                                                            subscriber: 'https://static-cdn.jtvnw.net/badges/v1/5d9f0f98-d8f9-476e-9f60-274291845b74/1', // Generic Star
+                                                        };
+                                                        const url = nativeBadges[key] || nativeBadges['subscriber']; // Fallback
+
+                                                        return (
+                                                            <img
+                                                                key={key}
+                                                                src={url}
+                                                                alt={key}
+                                                                className="w-4 h-4 object-contain mr-1"
+                                                            />
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <span key={key} title={key}>
+                                                                {key === 'broadcaster' ? '👑' : key === 'moderator' ? '⚔️' : key === 'vip' ? '💎' : '⭐'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                })}
+                                                <span>
+                                                    {msg.user}
+                                                    {styles.messageLayout === 'inline' && ":"}
+                                                </span>
+                                            </div>
+
+                                            {/* Block Mode: Time is in the header, flexed to right */}
+                                            {styles.messageLayout === 'block' && TimeComponent}
+                                        </div>
+
+                                        <div
+                                            className={`break-words leading-snug ${styles.messageLayout === 'inline' ? 'inline' : 'block mt-1'}`}
+                                            style={{
+                                                fontFamily: styles.fontFamily,
+                                                fontSize: `${styles.fontSize}px`,
+                                                color: styles.textColor,
+                                                fontWeight: styles.isBold ? 700 : 400,
+                                                ...textOutlineStyle
+                                            }}
+                                        >
+                                            {renderMessage(msg)}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </motion.div>
                     );
                 })}

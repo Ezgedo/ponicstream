@@ -4,7 +4,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useState, useEffect, useRef } from "react";
 import ChatBox, { ChatStyles, ChatMessageData } from "@/components/chat/ChatBox";
 import ChatPreview from "@/components/chat/ChatPreview";
-import { Settings, Copy, Save, ExternalLink, Layout, Palette, Activity, Type, Play, ArrowUp, ArrowDown, LogOut, Download, Upload, Clipboard, ClipboardCopy, ChevronDown, FileJson, CheckCircle, AlertCircle, X, ArrowRight } from "lucide-react";
+import { Settings, Copy, Save, ExternalLink, Layout, Palette, Activity, Type, Play, ArrowUp, ArrowDown, LogOut, Download, Upload, Clipboard, ClipboardCopy, ChevronDown, FileJson, CheckCircle, AlertCircle, X, ArrowRight, AlignLeft } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_STYLES: ChatStyles = {
@@ -20,6 +20,7 @@ const DEFAULT_STYLES: ChatStyles = {
     borderRadius: 8,
     width: 400,
     height: 600,
+    messageLayout: "block",
     position: "bottom-left",
     direction: "down",
     maxMessages: 50,
@@ -123,7 +124,8 @@ export default function DashboardPage() {
         visibility: false,
         dimensions: false,
         screenPos: false,
-        flow: false
+        flow: false,
+        messageLayout: false
     });
 
     const toggleSection = (section: string) => {
@@ -890,6 +892,7 @@ export default function DashboardPage() {
 
                                     {openSections.badges && styles.showBadges && (
                                         <div className="p-4 border-t border-white/5 space-y-2 bg-neutral-800/50">
+                                            {/* Badge Styles */}
                                             {Object.entries(styles.badgeStyles || {}).map(([role, conf]) => (
                                                 <div key={role} className="flex flex-col gap-2 border-b border-white/5 pb-2 last:border-0 last:pb-0">
                                                     <div className="flex items-center justify-between">
@@ -907,6 +910,7 @@ export default function DashboardPage() {
                                                                 className="bg-neutral-900 border border-white/10 text-xs rounded p-1 text-gray-300 focus:border-purple-500 outline-none"
                                                             >
                                                                 <option value="icon">Default Icon</option>
+                                                                <option value="native">Native</option>
                                                                 <option value="dot">Dot</option>
                                                                 <option value="custom">Custom Icon</option>
                                                             </select>
@@ -952,9 +956,42 @@ export default function DashboardPage() {
                             </div>
                         )}
 
-                        {/* LAYOUT TAB */}
                         {activeTab === "layout" && (
                             <div className="space-y-2 animate-in slide-in-from-right-4 fade-in duration-300">
+                                {/* Message Layout Section */}
+                                <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
+                                    <button
+                                        onClick={() => toggleSection('messageLayout')}
+                                        className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                                    >
+                                        Message Layout
+                                        {openSections.messageLayout ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                    </button>
+
+                                    {openSections.messageLayout && (
+                                        <div className="p-4 border-t border-white/5 space-y-3">
+                                            <div className="flex bg-neutral-800 p-1 rounded-lg border border-white/5">
+                                                <button
+                                                    onClick={() => setStyles({ ...styles, messageLayout: 'block' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.messageLayout === 'block' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
+                                                >
+                                                    <Layout size={14} /> Block (Default)
+                                                </button>
+                                                <button
+                                                    onClick={() => setStyles({ ...styles, messageLayout: 'inline' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm transition-all ${styles.messageLayout === 'inline' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:bg-neutral-700'}`}
+                                                >
+                                                    <AlignLeft size={14} /> Inline (Side-by-Side)
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-gray-500">
+                                                <strong>Block:</strong> Message appears below the username.<br />
+                                                <strong>Inline:</strong> Message appears next to the username.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Flow Direction Section */}
                                 <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
                                     <button

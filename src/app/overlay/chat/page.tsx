@@ -20,6 +20,7 @@ const DEFAULT_STYLES: ChatStyles = {
     borderRadius: 8,
     width: 400,
     height: 600,
+    messageLayout: "block",
     position: "bottom-left",
     direction: "down",
     maxMessages: 50,
@@ -245,7 +246,7 @@ function ChatOverlayContent() {
 
             const newMessage: ChatMessageData = {
                 id: tags.id || Date.now().toString(),
-                user: tags["display-name"] || tags.username,
+                user: `${tags["display-name"] || tags.username}`,
                 message: message,
                 color: tags.color || currentStyles.accentColor,
                 timestamp: Date.now(),
