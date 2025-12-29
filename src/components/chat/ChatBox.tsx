@@ -115,7 +115,8 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
 
             // Filter ignored users
             if (styles.ignoredUsers && styles.ignoredUsers.length > 0) {
-                filtered = filtered.filter(msg => !styles.ignoredUsers.includes(msg.user.toLowerCase()));
+                const ignoredLower = styles.ignoredUsers.map(u => u.toLowerCase());
+                filtered = filtered.filter(msg => !ignoredLower.includes(msg.user.toLowerCase()));
             }
 
             // Auto-hide logic

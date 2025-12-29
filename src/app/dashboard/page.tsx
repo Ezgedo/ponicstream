@@ -1,10 +1,10 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ChatBox, { ChatStyles, ChatMessageData } from "@/components/chat/ChatBox";
 import ChatPreview from "@/components/chat/ChatPreview";
-import { Settings, Copy, Save, ExternalLink, Layout, Palette, Activity, Type, Play, ArrowUp, ArrowDown, LogOut } from "lucide-react";
+import { Settings, Copy, Save, ExternalLink, Layout, Palette, Activity, Type, Play, ArrowUp, ArrowDown, LogOut, Download, Upload, Clipboard, ClipboardCopy, ChevronDown, FileJson, CheckCircle, AlertCircle, X } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_STYLES: ChatStyles = {
@@ -75,8 +75,27 @@ const DEFAULT_STYLES: ChatStyles = {
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const [styles, setStyles] = useState<ChatStyles>(DEFAULT_STYLES);
+    const [lastSavedStyles, setLastSavedStyles] = useState<string>(JSON.stringify(DEFAULT_STYLES)); // Store as string for easy comparison
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [ignoredUsersRaw, setIgnoredUsersRaw] = useState(DEFAULT_STYLES.ignoredUsers.join(', '));
     const [isSaved, setIsSaved] = useState(false);
+    const [toasts, setToasts] = useState<{ id: string, message: string, type: 'success' | 'error' | 'info' }[]>([]);
     const [activeTab, setActiveTab] = useState<"layout" | "appearance" | "behavior">("appearance");
+
+    // Toast Helper
+    const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+        const id = Math.random().toString(36).substring(7);
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 3000);
+    };
+
+    // Dirty Check Effect
+    useEffect(() => {
+        const currentString = JSON.stringify(styles);
+        setHasUnsavedChanges(currentString !== lastSavedStyles);
+    }, [styles, lastSavedStyles]);
 
     // Accordion State
     const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
@@ -102,6 +121,23 @@ export default function DashboardPage() {
 
     const [showPreview, setShowPreview] = useState(false);
     const [linkCorners, setLinkCorners] = useState(true);
+    const [showConfigDropdown, setShowConfigDropdown] = useState(false);
+    const configDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (configDropdownRef.current && !configDropdownRef.current.contains(event.target as Node)) {
+                setShowConfigDropdown(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
 
     const handleSendTestMessage = () => {
         const phrases = [
@@ -145,6 +181,16 @@ export default function DashboardPage() {
                     msgBgRoleColors: { ...DEFAULT_STYLES.msgBgRoleColors, ...(parsed.msgBgRoleColors || {}) },
                     badgeStyles: { ...DEFAULT_STYLES.badgeStyles, ...(parsed.badgeStyles || {}) },
                 }));
+                // Sync raw input state
+                if (parsed.ignoredUsers) {
+                    setIgnoredUsersRaw(parsed.ignoredUsers.join(', '));
+                }
+
+                // Set initial save state since we just loaded from storage
+                if (parsed) {
+                    setLastSavedStyles(JSON.stringify({ ...DEFAULT_STYLES, ...parsed }));
+                }
+
             } catch (e) {
                 console.error("Failed to parse saved styles", e);
             }
@@ -166,13 +212,70 @@ export default function DashboardPage() {
     }, [styles.maxMessages, previewMessages.length]);
 
     const handleSave = () => {
-        localStorage.setItem("chatStyles", JSON.stringify(styles));
+        const stylesString = JSON.stringify(styles);
+        localStorage.setItem("chatStyles", stylesString);
         if (session?.user?.name) {
             localStorage.setItem("twitchChannel", session.user.name);
         }
+        setLastSavedStyles(stylesString);
         setIsSaved(true);
+        addToast("Changes saved successfully!", "success");
         setTimeout(() => setIsSaved(false), 2000);
     };
+
+    const handleExportJson = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(styles, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "chat-config.json");
+        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        addToast("Configuration exported!", "success");
+    };
+
+    const handleImportJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const fileReader = new FileReader();
+        if (event.target.files && event.target.files[0]) {
+            fileReader.readAsText(event.target.files[0], "UTF-8");
+            fileReader.onload = (e) => {
+                try {
+                    if (e.target?.result) {
+                        applyConfig(e.target.result as string);
+                    }
+                } catch (error) {
+                    console.error("Error parsing JSON:", error);
+                    addToast("Invalid JSON file.", "error");
+                }
+            };
+        }
+    };
+
+    // Helper for validation in applyConfig
+    const applyConfig = (jsonString: string) => {
+        try {
+            const parsed = JSON.parse(jsonString);
+
+            // Validation
+            if (!parsed.fontFamily || !parsed.textColor || !parsed.msgBgMode) {
+                addToast("Invalid configuration. Missing required fields.", "error");
+                return;
+            }
+
+            setStyles(prev => ({
+                ...prev,
+                ...parsed,
+                msgBgRoleColors: { ...DEFAULT_STYLES.msgBgRoleColors, ...(parsed.msgBgRoleColors || {}) },
+                badgeStyles: { ...DEFAULT_STYLES.badgeStyles, ...(parsed.badgeStyles || {}) },
+            }));
+            if (parsed.ignoredUsers) {
+                setIgnoredUsersRaw(parsed.ignoredUsers.join(', '));
+            }
+            addToast("Configuration loaded successfully!", "success");
+        } catch (error) {
+            addToast("Failed to parse config.", "error");
+        }
+    }
 
     const handleCopyUrl = () => {
         const url = new URL(`${window.location.origin}/overlay/chat`);
@@ -181,7 +284,25 @@ export default function DashboardPage() {
         }
 
         navigator.clipboard.writeText(url.toString());
-        alert("Overlay URL copied! Styles will be loaded from Local Storage (remember to click Save).");
+        addToast("Overlay URL copied to clipboard!", "success");
+    };
+
+    const handleCopyJson = () => {
+        const dataStr = JSON.stringify(styles, null, 2);
+        navigator.clipboard.writeText(dataStr);
+        addToast("Configuration copied to clipboard!", "success");
+    };
+
+    const handlePasteJson = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                applyConfig(text);
+            }
+        } catch (err) {
+            console.error("Failed to read clipboard:", err);
+            addToast("Could not read clipboard. Please allow access.", "error");
+        }
     };
 
     if (status === "loading") return <div className="text-white p-10">Loading...</div>;
@@ -205,20 +326,52 @@ export default function DashboardPage() {
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <Settings className="text-purple-500" /> Chat Configuration
                 </h1>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 justify-center">
-                    <button onClick={handleCopyUrl} className="px-3 py-1.5 text-xs bg-neutral-800 hover:bg-neutral-700 rounded border border-white/10 flex items-center gap-1 transition-colors">
-                        <Copy size={12} /> Copy URL
-                    </button>
-                    <Link href="/overlay/chat" target="_blank" className="px-3 py-1.5 text-xs bg-purple-900/30 text-purple-300 hover:bg-purple-900/50 rounded border border-purple-500/30 flex items-center gap-1 transition-colors">
-                        <ExternalLink size={12} /> Open Overlay
-                    </Link>
-                    <div className="w-px h-6 bg-white/10 mx-1 hidden md:block"></div>
-                    <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className={`px-3 py-1.5 rounded text-xs border transition-colors flex items-center gap-2 ${showPreview ? "bg-purple-900/30 border-purple-500/50 text-purple-300" : "bg-neutral-800 border-white/10 text-gray-400"}`}
-                    >
-                        {showPreview ? "Hide Preview" : "Show Preview"}
-                    </button>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 justify-center relative">
+                    {/* Config Dropdown */}
+                    <div className="relative" ref={configDropdownRef}>
+                        <button
+                            onClick={() => setShowConfigDropdown(!showConfigDropdown)}
+                            className="px-3 py-1.5 text-xs bg-neutral-800 hover:bg-neutral-700 rounded border border-white/10 flex items-center gap-2 transition-colors"
+                        >
+                            <FileJson size={14} className="text-purple-400" /> Manage Config <ChevronDown size={12} />
+                        </button>
+
+                        {showConfigDropdown && (
+                            <div className="absolute top-full right-0 mt-2 w-48 bg-neutral-900 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                <div className="p-1 space-y-1">
+                                    <div className="text-[10px] uppercase font-bold text-gray-500 px-2 py-1">Export / Copy</div>
+                                    <button onClick={() => { handleExportJson(); setShowConfigDropdown(false); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-white/5 rounded flex items-center gap-2 text-gray-300">
+                                        <Download size={12} /> Export File (.json)
+                                    </button>
+                                    <button onClick={() => { handleCopyJson(); setShowConfigDropdown(false); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-white/5 rounded flex items-center gap-2 text-gray-300">
+                                        <ClipboardCopy size={12} /> Copy to Clipboard
+                                    </button>
+
+                                    <div className="h-px bg-white/5 my-1"></div>
+
+                                    <div className="text-[10px] uppercase font-bold text-gray-500 px-2 py-1">Import / Paste</div>
+                                    <label className="w-full text-left px-2 py-1.5 text-xs hover:bg-white/5 rounded flex items-center gap-2 text-gray-300 cursor-pointer">
+                                        <Upload size={12} /> Import File (.json)
+                                        <input type="file" accept=".json" onChange={(e) => { handleImportJson(e); setShowConfigDropdown(false); }} className="hidden" />
+                                    </label>
+                                    <button onClick={() => { handlePasteJson(); setShowConfigDropdown(false); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-white/5 rounded flex items-center gap-2 text-gray-300">
+                                        <Clipboard size={12} /> Paste from Clipboard
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* URL Group */}
+                    <div className="flex bg-neutral-800 rounded border border-white/10 overflow-hidden">
+                        <button onClick={handleCopyUrl} className="px-3 py-1.5 text-xs hover:bg-neutral-700 flex items-center gap-1 transition-colors border-r border-white/5">
+                            <Copy size={12} /> Copy URL
+                        </button>
+                        <Link href="/overlay/chat" target="_blank" className="px-3 py-1.5 text-xs hover:bg-neutral-700 flex items-center gap-1 transition-colors text-purple-400 hover:text-purple-300">
+                            <ExternalLink size={12} /> Open
+                        </Link>
+                    </div>
+
                     <div className="flex items-center gap-3 border-l border-white/10 pl-3 ml-1">
                         <div className="flex items-center gap-2">
                             <img src={session.user?.image || ""} className="w-8 h-8 rounded-full border border-purple-500" />
@@ -838,12 +991,16 @@ export default function DashboardPage() {
 
                                     {openSections.moderation && (
                                         <div className="p-4 border-t border-white/5 space-y-1">
-                                            <label className="text-xs text-gray-400">Ignored Users (one per line)</label>
+                                            <label className="text-xs text-gray-400">Ignored Users (separated by comma)</label>
                                             <textarea
-                                                value={styles.ignoredUsers?.join('\n') || ''}
-                                                onChange={(e) => setStyles({ ...styles, ignoredUsers: e.target.value.split('\n').map(s => s.trim()).filter(s => s) })}
-                                                className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10 h-24"
-                                                placeholder="StreamElements&#10;Nightbot"
+                                                value={ignoredUsersRaw}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setIgnoredUsersRaw(val);
+                                                    setStyles({ ...styles, ignoredUsers: val.split(',').map(s => s.trim()).filter(s => s) });
+                                                }}
+                                                className="w-full bg-neutral-800 rounded p-2 text-sm border border-white/10 h-24 resize-none placeholder:text-gray-600 focus:border-purple-500 outline-none"
+                                                placeholder="StreamElements, Nightbot"
                                             />
                                         </div>
                                     )}
@@ -887,11 +1044,46 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="p-4 border-t border-white/10 space-y-3">
+                        <button
+                            onClick={handleSave}
+                            disabled={!hasUnsavedChanges}
+                            className={`w-full py-3 rounded-lg font-bold transition-all flex justify-center items-center gap-2 shadow-lg ${hasUnsavedChanges
+                                ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-900/20 cursor-pointer"
+                                : "bg-neutral-800 text-gray-500 cursor-not-allowed border border-white/5"
+                                } ${isSaved ? "!bg-green-600 !text-white" : ""}`}
+                        >
+                            {isSaved ? <CheckCircle size={18} /> : <Save size={18} />}
+                            {isSaved ? "Saved Successfully!" : (hasUnsavedChanges ? "Save Changes" : "No Changes to Save")}
+                        </button>
 
-                        <button onClick={handleSave} className="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-bold transition-all flex justify-center items-center gap-2 shadow-lg shadow-purple-900/20">
-                            <Save size={18} /> {isSaved ? "Configuration Saved!" : "Save Changes"}
+                        <button
+                            onClick={() => setShowPreview(!showPreview)}
+                            className={`w-full py-2 rounded-lg text-xs border transition-colors flex justify-center items-center gap-2 ${showPreview ? "bg-purple-900/20 border-purple-500/50 text-purple-300" : "bg-neutral-800 border-white/10 text-gray-400 hover:bg-neutral-700"}`}
+                        >
+                            {showPreview ? "Hide Preview" : "Show Preview in Dashboard"}
                         </button>
                     </div>
+                </div>
+
+                {/* Toasts Container */}
+                <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-[100]">
+                    {toasts.map((toast) => (
+                        <div
+                            key={toast.id}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-2xl border animate-in slide-in-from-right-full fade-in duration-300 ${toast.type === 'success' ? 'bg-neutral-900 border-green-500/50 text-green-400' :
+                                toast.type === 'error' ? 'bg-neutral-900 border-red-500/50 text-red-400' :
+                                    'bg-neutral-900 border-blue-500/50 text-blue-400'
+                                }`}
+                        >
+                            {toast.type === 'success' && <CheckCircle size={18} />}
+                            {toast.type === 'error' && <AlertCircle size={18} />}
+                            {toast.type === 'info' && <Settings size={18} />}
+                            <span className="text-sm font-medium text-white">{toast.message}</span>
+                            <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} className="ml-2 hover:text-white transition-colors">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    ))}
                 </div>
 
                 {/* PREVIEW PANEL */}
