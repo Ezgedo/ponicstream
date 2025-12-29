@@ -70,6 +70,20 @@ const DEFAULT_STYLES: ChatStyles = {
     autoHideSeconds: 0,
     animationEntry: "fade",
     animationExit: "fade",
+
+    // Borders
+    borderEnabled: true,
+    borderThickness: 4,
+    borderColor: "",
+    borderSides: { top: false, right: false, bottom: false, left: true },
+
+    // Shadows
+    shadowEnabled: false,
+    shadowColor: "#000000",
+    shadowOpacity: 50,
+    shadowBlur: 6,
+    shadowOffsetX: 0,
+    shadowOffsetY: 4,
 };
 
 import { Suspense } from "react";

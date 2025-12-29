@@ -43,7 +43,7 @@ export interface ChatStyles {
     borderRadiusBR: number;
 
     // Background Modes
-    msgBgMode: 'solid' | 'cycle' | 'role' | 'pride' | 'image';
+    msgBgMode: 'solid' | 'cycle' | 'role' | 'pride' | 'image' | 'transparent';
     msgBgCycleColors: string[]; // Up to 3 colors
     msgBgCycleCount: 2 | 3;
     msgBgRoleColors: {
@@ -74,6 +74,25 @@ export interface ChatStyles {
     autoHideSeconds: number; // 0 = never
     animationEntry: "fade" | "slide-up" | "slide-left" | "scale";
     animationExit: "fade" | "slide-down" | "slide-right" | "scale";
+
+    // Borders
+    borderEnabled?: boolean;
+    borderThickness?: number;
+    borderColor?: string;
+    borderSides?: {
+        top: boolean;
+        right: boolean;
+        bottom: boolean;
+        left: boolean;
+    };
+
+    // Shadows
+    shadowEnabled?: boolean;
+    shadowColor?: string;
+    shadowOpacity?: number;
+    shadowBlur?: number;
+    shadowOffsetX?: number;
+    shadowOffsetY?: number;
 }
 
 export interface ChatMessageData {
@@ -252,6 +271,9 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
         // 1. Background Image overrides everything IF mode is image
         if (styles.msgBgMode === 'image' && styles.backgroundImage) return 'transparent';
 
+        // 2. Transparent Mode
+        if (styles.msgBgMode === 'transparent') return 'transparent';
+
         let color = styles.backgroundColor; // Default to solid/base color
 
         // 2. Handle Modes
@@ -305,6 +327,18 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                         ? (msg.color || styles.accentColor)
                         : styles.accentColor;
 
+                    // Border Logic
+                    const effectiveBorderColor = styles.useUserColorForAccent
+                        ? (msg.color || styles.accentColor)
+                        : (styles.borderColor || styles.accentColor);
+
+                    const borderStyle = styles.borderEnabled ? `${styles.borderThickness}px solid ${effectiveBorderColor}` : 'none';
+
+                    // Shadow Logic
+                    const boxShadowScale = styles.shadowEnabled ?
+                        `${styles.shadowOffsetX ?? 0}px ${styles.shadowOffsetY ?? 4}px ${styles.shadowBlur ?? 6}px ${hexToRgba(styles.shadowColor ?? '#000000', styles.shadowOpacity ?? 50)}`
+                        : 'none';
+
                     return (
                         <motion.div
                             key={msg.id}
@@ -323,7 +357,16 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                 borderTopRightRadius: `${styles.borderRadiusTR ?? styles.borderRadius}px`,
                                 borderBottomLeftRadius: `${styles.borderRadiusBL ?? styles.borderRadius}px`,
                                 borderBottomRightRadius: `${styles.borderRadiusBR ?? styles.borderRadius}px`,
-                                borderLeft: `4px solid ${accent}`,
+
+                                // Dynamic Borders
+                                borderTop: styles.borderEnabled && (styles.borderSides?.top ?? true) ? borderStyle : 'none',
+                                borderRight: styles.borderEnabled && (styles.borderSides?.right ?? true) ? borderStyle : 'none',
+                                borderBottom: styles.borderEnabled && (styles.borderSides?.bottom ?? true) ? borderStyle : 'none',
+                                borderLeft: styles.borderEnabled && (styles.borderSides?.left ?? true) ? borderStyle : 'none',
+
+                                // Box Shadow
+                                boxShadow: boxShadowScale,
+
                                 padding: `${styles.padding ?? 12}px`,
                                 marginBottom: `${styles.margin ?? 8}px`,
                             }}

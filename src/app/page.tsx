@@ -27,8 +27,8 @@ export default function Home() {
         </h1>
 
         <p className="text-xl text-gray-400 font-light">
-          Professional tools for next-generation streamers.
-          Customize your chat overlay with our premium dashboard.
+          Professional tools for next-generation streamers. <br />
+          All-in-one modular platform to customize your stream.
         </p>
 
         <div className="pt-8">
