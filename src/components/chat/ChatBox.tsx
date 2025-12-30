@@ -111,7 +111,7 @@ interface ChatBoxProps {
     messages: ChatMessageData[];
 }
 
-export default function ChatBox({ styles, messages }: ChatBoxProps) {
+export default function ChatBox({ styles, messages, isPreview = false, badgeMap }: { styles: ChatStyles, messages: ChatMessageData[], isPreview?: boolean, badgeMap?: Record<string, Record<string, string>> }) {
     const [visibleMessages, setVisibleMessages] = useState<ChatMessageData[]>([]);
 
     // Helper to convert hex to rgba
@@ -436,8 +436,24 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                                             premium: 'https://static-cdn.jtvnw.net/badges/v1/a1dd5073-19c3-4911-8cb0-80d4b76c0353/1', // Prime
                                                             turbo: 'https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-91f4-af1e3428d80f/1',
                                                             subscriber: 'https://static-cdn.jtvnw.net/badges/v1/5d9f0f98-d8f9-476e-9f60-274291845b74/1', // Generic Star
+                                                            partner: 'https://static-cdn.jtvnw.net/badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/1',
+                                                            artist: 'https://static-cdn.jtvnw.net/badges/v1/4300a897-03dc-4e83-8c0e-c332fe12bbe4/1',
+                                                            founder: 'https://static-cdn.jtvnw.net/badges/v1/51352694-33d2-45cb-a214-497d34190c7b/1',
                                                         };
-                                                        const url = nativeBadges[key] || nativeBadges['subscriber']; // Fallback
+
+                                                        let url = nativeBadges[key];
+
+                                                        // Try dynamic badge map first
+                                                        if (badgeMap && badgeMap[key] && badgeMap[key][value]) {
+                                                            url = badgeMap[key][value];
+                                                        }
+
+                                                        // Fallback to subscriber generic if it's a subscriber badge but no specific one found
+                                                        if (!url && key === 'subscriber') {
+                                                            url = nativeBadges['subscriber'];
+                                                        }
+
+                                                        if (!url) return null;
 
                                                         return (
                                                             <img
@@ -445,6 +461,7 @@ export default function ChatBox({ styles, messages }: ChatBoxProps) {
                                                                 src={url}
                                                                 alt={key}
                                                                 className="w-4 h-4 object-contain mr-1"
+                                                                onError={(e) => e.currentTarget.style.display = 'none'}
                                                             />
                                                         );
                                                     } else {

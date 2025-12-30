@@ -96,6 +96,43 @@ export default function DashboardPage() {
     const [isSaved, setIsSaved] = useState(false);
     const [toasts, setToasts] = useState<{ id: string, message: string, type: 'success' | 'error' | 'info' }[]>([]);
     const [activeTab, setActiveTab] = useState<"layout" | "appearance" | "behavior">("appearance");
+    const [badgeMap, setBadgeMap] = useState<Record<string, Record<string, string>>>({});
+
+    // Fetch Badges (Similar to Live Dashboard)
+    useEffect(() => {
+        if (session?.accessToken && session?.clientId && session?.user?.id) {
+            const fetchBadges = async () => {
+                try {
+                    const headers = {
+                        'Client-ID': session.clientId!,
+                        'Authorization': `Bearer ${session.accessToken}`
+                    };
+                    const globalRes = await fetch('https://api.twitch.tv/helix/chat/badges/global', { headers });
+                    const globalData = await globalRes.json();
+
+                    const channelRes = await fetch(`https://api.twitch.tv/helix/chat/badges?broadcaster_id=${session.user!.id}`, { headers });
+                    const channelData = await channelRes.json();
+
+                    const newMap: Record<string, Record<string, string>> = {};
+                    const merge = (data: any[]) => {
+                        if (!data) return;
+                        data.forEach((set: any) => {
+                            if (!newMap[set.set_id]) newMap[set.set_id] = {};
+                            set.versions.forEach((v: any) => {
+                                newMap[set.set_id][v.id] = v.image_url_1x;
+                            });
+                        });
+                    }
+                    merge(globalData.data);
+                    merge(channelData.data);
+                    setBadgeMap(newMap);
+                } catch (e) {
+                    console.error("Failed to fetch badges", e);
+                }
+            };
+            fetchBadges();
+        }
+    }, [session]);
 
     // Toast Helper
     const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -172,7 +209,10 @@ export default function DashboardPage() {
             message: randomMsg,
             color: "#" + Math.floor(Math.random() * 16777215).toString(16),
             timestamp: Date.now(),
-            // Mock emote for testing if needed, though random text usually suffices
+            badges: {
+                subscriber: '0', // Mock subscriber badge
+                broadcaster: '1' // Mock broadcaster badge
+            }
         };
 
         setPreviewMessages(prev => {

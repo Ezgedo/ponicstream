@@ -203,6 +203,21 @@ function ChatOverlayContent() {
         stylesRef.current = styles;
     }, [styles]);
 
+    const [badgeMap, setBadgeMap] = useState<Record<string, Record<string, string>>>({});
+
+    // Fetch Badges
+    useEffect(() => {
+        const channel = searchParams.get("channel") || localStorage.getItem("twitchChannel");
+        if (channel) {
+            fetch(`/api/badges?channel=${channel}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.error) setBadgeMap(data);
+                })
+                .catch(err => console.error("Failed to fetch badges for overlay", err));
+        }
+    }, [searchParams]);
+
     // 2. Connect to Twitch
     useEffect(() => {
         let channel = searchParams.get("channel");
@@ -309,7 +324,7 @@ function ChatOverlayContent() {
                     No channel specified. Add ?channel=NAME to URL or login to Dashboard.
                 </div>
             )}
-            <ChatBox styles={styles} messages={messages} />
+            <ChatBox styles={styles} messages={messages} badgeMap={badgeMap} />
         </div>
     );
 }

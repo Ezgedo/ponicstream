@@ -12,20 +12,23 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.TWITCH_CLIENT_SECRET!,
             authorization: {
                 params: {
-                    scope: "openid user:read:email chat:read chat:edit",
+                    scope: "openid user:read:email chat:read chat:edit channel:moderate moderator:manage:chat_messages moderator:manage:banned_users",
                 },
             },
         }),
     ],
     callbacks: {
-        async jwt({ token, account }) {
+        async jwt({ token, account, user }) {
             if (account) {
-                token.accessToken = account.access_token
+                token.accessToken = account.access_token;
+                token.id = user?.id || token.sub; // user.id is usually the provider ID (Twitch ID)
             }
             return token
         },
         async session({ session, token }: any) {
-            session.accessToken = token.accessToken
+            session.accessToken = token.accessToken;
+            session.user.id = token.id;
+            session.clientId = process.env.TWITCH_CLIENT_ID;
             return session
         },
     },

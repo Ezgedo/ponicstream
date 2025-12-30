@@ -2,7 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
-import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight } from "lucide-react";
+import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function DashboardHub() {
@@ -33,10 +33,19 @@ export default function DashboardHub() {
             color: "border-purple-500/30 hover:border-purple-500",
             bg: "bg-purple-900/10 hover:bg-purple-900/20"
         },
+        {
+            id: "live",
+            title: "Live Mod Chat (BETA)",
+            description: "Interact with chat, ban/timeout users, and moderate your stream in real-time.",
+            icon: <Shield size={32} className="text-pink-500" />,
+            href: "/dashboard/live",
+            color: "border-pink-500/30 hover:border-pink-500",
+            bg: "bg-pink-900/10 hover:bg-pink-900/20"
+        },
         // Future modules (Placeholders)
         {
             id: "alerts",
-            title: "Stream Alerts",
+            title: "Stream Alerts (Coming Soon)",
             description: "Coming Soon. Configure custom alerts for followers, subs, and raids.",
             icon: <ActivityIcon size={32} className="text-gray-600" />,
             href: "#",
