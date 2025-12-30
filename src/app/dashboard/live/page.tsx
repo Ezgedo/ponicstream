@@ -1,9 +1,9 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, ReactNode } from "react";
 import tmi from "tmi.js";
-import { Send, Settings, UserX, Shield, Pin, Trash2, Ban, Clock, MessageSquare, AlertCircle, RefreshCw } from "lucide-react";
+import { Send, MessageSquare, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function LiveDashboardPage() {
     const { data: session } = useSession();
@@ -167,80 +167,7 @@ export default function LiveDashboardPage() {
         }
     };
 
-    const handleAction = async (action: string, username: string, extra?: any) => {
-        if (!client) return;
-        const channel = session?.user?.name?.toLowerCase()!;
 
-        console.log(`Executing ${action} on ${channel} for ${username}`, extra);
-
-        try {
-            switch (action) {
-                case 'timeout':
-                    await client.timeout(channel, username, 600, "Timed out via Live Dashboard");
-                    break;
-                case 'ban':
-                    await client.ban(channel, username, "Banned via Live Dashboard");
-                    break;
-                case 'delete':
-                    if (extra?.msgId) {
-                        try {
-                            const trimmedMsgId = extra.msgId.trim();
-
-                            // Verify User ID first
-                            const userRes = await fetch('https://api.twitch.tv/helix/users', {
-                                headers: {
-                                    'Client-ID': session.clientId!,
-                                    'Authorization': `Bearer ${session.accessToken}`
-                                }
-                            });
-
-                            if (!userRes.ok) {
-                                console.warn("Failed to fetch user info for delete:", await userRes.text());
-                                return;
-                            }
-
-                            const userData = await userRes.json();
-                            const realUserId = userData.data?.[0]?.id;
-
-                            console.log(`Deleting via API. SessionID: ${session.user?.id}, RealID: ${realUserId}, Msg: ${trimmedMsgId}`);
-
-                            if (!realUserId) {
-                                console.warn("Could not resolve Real User ID");
-                                return;
-                            }
-
-                            // Use Helix API
-                            const res = await fetch(`https://api.twitch.tv/helix/moderation/chat_messages?broadcaster_id=${realUserId}&moderator_id=${realUserId}&message_id=${trimmedMsgId}`, {
-                                method: 'DELETE',
-                                headers: {
-                                    'Client-ID': session.clientId!,
-                                    'Authorization': `Bearer ${session.accessToken}`
-                                }
-                            });
-
-                            if (!res.ok) {
-                                const err = await res.text();
-                                console.warn("API Delete Failed:", err);
-
-                                // Fallback: try legacy TMI command just in case
-                                if (err.includes("Not Found")) {
-                                    console.log("Attempting fallback TMI delete...");
-                                    await client.say(channel, `/delete ${trimmedMsgId}`);
-                                }
-                            } else {
-                                console.log("Message deleted successfully via API");
-                                setMessages(prev => prev.filter(m => m.id !== trimmedMsgId));
-                            }
-                        } catch (e) {
-                            console.warn("Delete API error:", e);
-                        }
-                    }
-                    break;
-            }
-        } catch (err: any) {
-            console.warn("Action failed:", err);
-        }
-    };
 
     if (!session) return <div className="p-8 text-white">Please log in to use the Live Dashboard.</div>;
 
@@ -312,7 +239,7 @@ export default function LiveDashboardPage() {
                                     const parseMessage = (text: string, emotes: any) => {
                                         if (!emotes) return text;
 
-                                        const parts: (string | JSX.Element)[] = [];
+                                        const parts: (string | ReactNode)[] = [];
                                         let lastIndex = 0;
 
                                         // 1. Flatten into array of { id, start, end }
