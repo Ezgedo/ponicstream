@@ -175,6 +175,7 @@ export default function LiveDashboardPage() {
 
             clientInstance.on("message", (channel, tags, message, self) => {
                 // Deduplicate explicitly
+
                 setMessages(prev => {
                     // Unique ID strategy: Preferred ID -> Username+Message+Time content hash fallback
                     const id = tags.id || `${tags.username}-${message}-${Date.now()}`;
