@@ -35,8 +35,14 @@ const translationCache: Record<string, string> = {};
  * Returns null if translation fails or is unnecessary.
  */
 export async function translateToSpanish(text: string): Promise<string | null> {
-    if (!text.trim()) return null;
-    if (isSpanish(text)) return null;
+    const trimmedText = text.trim();
+    if (!trimmedText) return null;
+
+    // Condition: Only translate if there are more than 2 words
+    const wordCount = trimmedText.split(/\s+/).length;
+    if (wordCount <= 2) return null;
+
+    if (isSpanish(trimmedText)) return null;
 
     if (translationCache[text]) return translationCache[text];
 
