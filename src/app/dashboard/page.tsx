@@ -2,7 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
-import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight, Shield } from "lucide-react";
+import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight, Shield, Languages } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function DashboardHub() {
@@ -34,15 +34,24 @@ export default function DashboardHub() {
             bg: "bg-purple-900/10 hover:bg-purple-900/20"
         },
         {
-            id: "live",
-            title: "Live Mod Chat (BETA)",
-            description: "Interact with chat, ban/timeout users, and moderate your stream in real-time.",
-            icon: <Shield size={32} className="text-pink-500" />,
-            href: "/dashboard/live",
-            color: "border-pink-500/30 hover:border-pink-500",
-            bg: "bg-pink-900/10 hover:bg-pink-900/20"
+            id: "translator",
+            title: "Auto-Translator",
+            description: "Headless translation bot. Configurable languages, filters, and auto-reply.",
+            icon: <Languages size={32} className="text-cyan-400" />,
+            href: "/dashboard/translator",
+            color: "border-cyan-500/30 hover:border-cyan-500",
+            bg: "bg-cyan-900/10 hover:bg-cyan-900/20"
         },
         // Future modules (Placeholders)
+        {
+            id: "live",
+            title: "Live Mod Chat (Coming Soon)",
+            description: "Interact with chat, ban/timeout users, and moderate your stream in real-time.",
+            icon: <Shield size={32} className="text-pink-500" />,
+            href: "#",
+            color: "border-gray-800",
+            bg: "bg-neutral-900/50 grayscale opacity-50 cursor-not-allowed"
+        },
         {
             id: "alerts",
             title: "Stream Alerts (Coming Soon)",

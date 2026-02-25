@@ -1,27 +1,40 @@
+export interface TranslatorSettings {
+    enabled: boolean;
+    minWords: number;
+    targetLanguage: string;
+    sourceLanguages: string; // 'auto' or comma-separated list
+    ignoredLanguages: string[];
+}
+
+export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
+    enabled: false,
+    minWords: 3,
+    targetLanguage: 'es',
+    sourceLanguages: 'auto',
+    ignoredLanguages: ['es'],
+};
+
 /**
- * Simple heuristic to check if a text is likely in Spanish.
- * Checks for common Spanish words and specific characters (ñ, á, é, í, ó, ú, ¿, ¡).
+ * Heuristic check if a text is in a specific language (currently only works well for Spanish).
+ * @deprecated Use general language detection if possible, or refined heuristics.
  */
-export function isSpanish(text: string): boolean {
+export function isLanguage(text: string, langCode: string): boolean {
+    if (langCode !== 'es') return false; // Heuristic only for Spanish for now
+
     const spanishWords = new Set([
         'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'en', 'de', 'del',
-        'con', 'por', 'para', 'que', 'si', 'no', 'si', 'este', 'esta', 'estos', 'estas',
-        'yo', 'tu', 'el', 'nosotros', 'vosotros', 'ellos', 'mi', 'su', 'ser', 'estar', 'ha', 'es', 'son'
+        'con', 'por', 'para', 'que', 'si', 'no', 'este', 'esta', 'estos', 'estas',
+        'yo', 'tu', 'nosotros', 'vosotros', 'ellos', 'mi', 'su', 'ser', 'estar', 'ha', 'es', 'son'
     ]);
 
     const words = text.toLowerCase().split(/\s+/);
-
-    // 1. Check for specific Spanish characters
     if (/[ñáéíóú¿¡]/i.test(text)) return true;
 
-    // 2. Count common Spanish words
     let commonWordCount = 0;
     for (const word of words) {
         if (spanishWords.has(word)) commonWordCount++;
     }
 
-    // If more than 20% of words are common Spanish words, we assume it's Spanish
-    // Or if it's a very short message with at least one common word
     if (words.length > 0 && (commonWordCount / words.length) >= 0.2) return true;
     if (words.length <= 3 && commonWordCount >= 1) return true;
 
@@ -31,37 +44,43 @@ export function isSpanish(text: string): boolean {
 const translationCache: Record<string, string> = {};
 
 /**
- * Translates text to Spanish using the Google gtx API.
- * Returns null if translation fails or is unnecessary.
+ * Translates text based on provided settings.
  */
-export async function translateToSpanish(text: string): Promise<string | null> {
+export async function translateText(text: string, settings: TranslatorSettings): Promise<string | null> {
     const trimmedText = text.trim();
-    if (!trimmedText) return null;
+    if (!trimmedText || !settings.enabled) return null;
 
-    // Condition: Only translate if there are more than 2 words
+    // Word count check
     const wordCount = trimmedText.split(/\s+/).length;
-    if (wordCount <= 2) return null;
+    if (wordCount < settings.minWords) return null;
 
-    if (isSpanish(trimmedText)) return null;
+    // If target language is Spanish, use our heuristic to save API calls
+    if (settings.targetLanguage === 'es' && isLanguage(trimmedText, 'es')) return null;
 
-    if (translationCache[text]) return translationCache[text];
+    const cacheKey = `${settings.targetLanguage}:${trimmedText}`;
+    if (translationCache[cacheKey]) return translationCache[cacheKey];
 
     try {
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(text)}`;
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${settings.sourceLanguages}&tl=${settings.targetLanguage}&dt=t&q=${encodeURIComponent(trimmedText)}`;
         const response = await fetch(url);
 
         if (!response.ok) return null;
 
         const data = await response.json();
 
-        // Google gtx API returns an array: [[["translated", "source", ...], ...], ...]
+        // data format: [[["translated", "source", ...], ...], languageIdentifier, ...]
         if (data && data[0] && data[0][0] && data[0][0][0]) {
             const translated = data[0][0][0];
+            const detectedLang = data[2];
+
+            // Filter logic: Ignore if detected language is the target language or in ignored list
+            if (detectedLang === settings.targetLanguage) return null;
+            if (settings.ignoredLanguages.includes(detectedLang)) return null;
 
             // If the translated text is the same as the original, might be untranslatable
-            if (translated.toLowerCase() === text.toLowerCase()) return null;
+            if (translated.toLowerCase() === trimmedText.toLowerCase()) return null;
 
-            translationCache[text] = translated;
+            translationCache[cacheKey] = translated;
             return translated;
         }
 

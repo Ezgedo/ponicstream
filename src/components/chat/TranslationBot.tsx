@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import tmi from "tmi.js";
-import { translateToSpanish } from "@/utils/translation";
+import { translateText, DEFAULT_TRANSLATOR_SETTINGS, TranslatorSettings } from "@/utils/translation";
 
 /**
  * HeadlessTranslationBot
@@ -18,6 +18,36 @@ export default function TranslationBot() {
     const REPLY_COOLDOWN = 2000;
 
     useEffect(() => {
+        const loadSettings = () => {
+            const saved = localStorage.getItem('ponicstream_translator_settings');
+            if (saved) {
+                try {
+                    return JSON.parse(saved) as TranslatorSettings;
+                } catch (e) {
+                    console.error("Failed to parse settings", e);
+                }
+            }
+            return DEFAULT_TRANSLATOR_SETTINGS;
+        };
+
+        let settings = loadSettings();
+
+        // Listen for internal storage changes
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'ponicstream_translator_settings') {
+                settings = loadSettings();
+                console.log("[Bot] Settings updated from storage change", settings);
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        // Custom event for same-window updates
+        const handleCustomUpdate = () => {
+            settings = loadSettings();
+            console.log("[Bot] Settings updated from custom event", settings);
+        };
+        window.addEventListener('ponicstream_translator_update', handleCustomUpdate);
+
         // Only run if we have a session with an access token and a username
         if (session?.accessToken && session?.user?.name) {
             const channel = session.user.name.toLowerCase();
@@ -54,7 +84,7 @@ export default function TranslationBot() {
                 if (now - lastReplyTimeRef.current < REPLY_COOLDOWN) return;
 
                 try {
-                    const translated = await translateToSpanish(message);
+                    const translated = await translateText(message, settings);
 
                     if (translated) {
                         lastReplyTimeRef.current = Date.now();
@@ -71,6 +101,8 @@ export default function TranslationBot() {
             clientRef.current = client;
 
             return () => {
+                window.removeEventListener('storage', handleStorageChange);
+                window.removeEventListener('ponicstream_translator_update', handleCustomUpdate);
                 if (clientRef.current) {
                     clientRef.current.disconnect().catch(() => { });
                     clientRef.current = null;
