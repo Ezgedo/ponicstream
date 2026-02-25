@@ -18,6 +18,11 @@ export default function TranslationBot() {
     const REPLY_COOLDOWN = 2000;
 
     useEffect(() => {
+        let isCancelled = false;
+        const botId = Math.random().toString(36).substring(7);
+        const LEADER_KEY = 'ponicstream_translator_leader_id';
+        const HEARTBEAT_KEY = 'ponicstream_translator_leader_ts';
+
         const loadSettings = () => {
             const saved = localStorage.getItem('ponicstream_translator_settings');
             if (saved) {
@@ -32,19 +37,37 @@ export default function TranslationBot() {
 
         let settings = loadSettings();
 
+        // Leadership Heartbeat
+        const updateHeartbeat = () => {
+            if (isCancelled) return;
+            const now = Date.now();
+            const currentLeaderId = localStorage.getItem(LEADER_KEY);
+            const lastHeartbeat = parseInt(localStorage.getItem(HEARTBEAT_KEY) || '0');
+
+            // Claim leadership if empty, expired, or we are already the leader
+            if (!currentLeaderId || (now - lastHeartbeat > 5000) || currentLeaderId === botId) {
+                localStorage.setItem(LEADER_KEY, botId);
+                localStorage.setItem(HEARTBEAT_KEY, now.toString());
+            }
+        };
+
+        const heartbeatInterval = setInterval(updateHeartbeat, 2000);
+        updateHeartbeat();
+
+        const isLeader = () => localStorage.getItem(LEADER_KEY) === botId;
+
         // Listen for internal storage changes
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key === 'ponicstream_translator_settings') {
                 settings = loadSettings();
-                console.log("[Bot] Settings updated from storage change", settings);
+                console.log(`[Bot ${botId}] Settings updated`, settings);
             }
         };
         window.addEventListener('storage', handleStorageChange);
 
-        // Custom event for same-window updates
         const handleCustomUpdate = () => {
             settings = loadSettings();
-            console.log("[Bot] Settings updated from custom event", settings);
+            console.log(`[Bot ${botId}] Settings updated (custom)`, settings);
         };
         window.addEventListener('ponicstream_translator_update', handleCustomUpdate);
 
@@ -52,17 +75,9 @@ export default function TranslationBot() {
         if (session?.accessToken && session?.user?.name) {
             const channel = session.user.name.toLowerCase();
 
-            // Cleanup previous connection if any
-            if (clientRef.current) {
-                clientRef.current.disconnect().catch(() => { });
-            }
-
             const client = new tmi.Client({
                 options: { debug: false },
-                connection: {
-                    reconnect: true,
-                    secure: true,
-                },
+                connection: { reconnect: true, secure: true },
                 identity: {
                     username: session.user.name,
                     password: `oauth:${session.accessToken}`,
@@ -71,27 +86,31 @@ export default function TranslationBot() {
             });
 
             client.connect().then(() => {
-                console.log("[Bot] Connected to chat for headless translation");
+                if (isCancelled) {
+                    client.disconnect();
+                    return;
+                }
+                console.log(`[Bot ${botId}] Connected`);
             }).catch(err => {
-                console.error("[Bot] Connection failed:", err);
+                if (!isCancelled) console.error(`[Bot ${botId}] Connection failed`, err);
             });
 
             client.on("message", async (targetChannel, tags, message, self) => {
-                // Don't reply to ourselves or other bots if we can help it
-                if (self) return;
+                if (self || isCancelled) return;
+
+                // Only the leader replies
+                if (!isLeader()) return;
 
                 const now = Date.now();
                 if (now - lastReplyTimeRef.current < REPLY_COOLDOWN) return;
 
                 try {
                     const translated = await translateText(message, settings);
-
-                    if (translated) {
+                    if (translated && !isCancelled) {
                         lastReplyTimeRef.current = Date.now();
                         const username = tags['display-name'] || tags.username;
-
-                        // Action: Reply to chat with translation
-                        await client.say(targetChannel, `@${username} (ES): ${translated}`);
+                        const langLabel = settings.targetLanguage.toUpperCase();
+                        await client.say(targetChannel, `@${username} (${langLabel}): ${translated}`);
                     }
                 } catch (error) {
                     console.error("[Bot] Translation error:", error);
@@ -101,14 +120,27 @@ export default function TranslationBot() {
             clientRef.current = client;
 
             return () => {
+                isCancelled = true;
+                clearInterval(heartbeatInterval);
                 window.removeEventListener('storage', handleStorageChange);
                 window.removeEventListener('ponicstream_translator_update', handleCustomUpdate);
                 if (clientRef.current) {
                     clientRef.current.disconnect().catch(() => { });
                     clientRef.current = null;
                 }
+                // If we were the leader, clean up so others can take over fast
+                if (localStorage.getItem(LEADER_KEY) === botId) {
+                    localStorage.removeItem(LEADER_KEY);
+                }
             };
         }
+
+        return () => {
+            isCancelled = true;
+            clearInterval(heartbeatInterval);
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('ponicstream_translator_update', handleCustomUpdate);
+        };
     }, [session?.accessToken, session?.user?.name]);
 
     // This component renders nothing
