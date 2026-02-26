@@ -109,7 +109,40 @@ export default function TranslationBot() {
             client.on("message", async (targetChannel, tags, message, self) => {
                 if (self || isCancelled) return;
 
-                // Only the leader replies
+                // Handle manual commands (!tsen, !tses, etc.)
+                if (settings.commandsEnabled && message.startsWith('!')) {
+                    const parts = message.trim().split(/\s+/);
+                    const trigger = parts[0].toLowerCase();
+                    const command = settings.commands.find(c => c.trigger.toLowerCase() === trigger);
+
+                    if (command) {
+                        const textToTranslate = parts.slice(1).join(' ').trim();
+                        if (textToTranslate) {
+                            try {
+                                // Manual commands override global settings (minWords, targetLanguage, etc.)
+                                const manualSettings: TranslatorSettings = {
+                                    ...settings,
+                                    enabled: true,
+                                    targetLanguage: command.target,
+                                    minWords: 1, // Override min words for manual commands
+                                    ignoredLanguages: [], // Don't ignore for manual commands
+                                };
+
+                                const translated = await translateText(textToTranslate, manualSettings);
+                                if (translated && !isCancelled) {
+                                    const username = tags['display-name'] || tags.username;
+                                    const langLabel = command.target.toUpperCase();
+                                    await client.say(targetChannel, `@${username} (${langLabel}): ${translated}`);
+                                    return; // Don't proceed to auto-translation
+                                }
+                            } catch (error) {
+                                console.error("[Bot] Manual translation error:", error);
+                            }
+                        }
+                    }
+                }
+
+                // Only the leader handles auto-translations
                 if (!isLeader()) return;
 
                 const now = Date.now();

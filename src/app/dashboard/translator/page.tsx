@@ -6,8 +6,8 @@ import {
     Languages, Save, ArrowRight, Settings, LogOut,
     FileJson, ChevronDown, Download, ClipboardCopy,
     Upload, Clipboard, Copy, ExternalLink, Activity,
-    Layout, Palette, ArrowUp, ArrowDown, Plus, X,
-    CheckCircle, AlertCircle, Info
+    ArrowUp, ArrowDown, Plus, X,
+    CheckCircle, AlertCircle, Info, Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,7 +38,6 @@ export default function TranslatorConfigPage() {
     const [settings, setSettings] = useState<TranslatorSettings>(DEFAULT_TRANSLATOR_SETTINGS);
     const [lastSavedSettings, setLastSavedSettings] = useState<string>('');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [activeTab, setActiveTab] = useState<"general" | "languages" | "filters">("general");
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [showConfigDropdown, setShowConfigDropdown] = useState(false);
     const [ignoredInput, setIgnoredInput] = useState('');
@@ -46,9 +45,10 @@ export default function TranslatorConfigPage() {
     const configDropdownRef = useRef<HTMLDivElement>(null);
 
     const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
-        status: true,
-        detection: true,
-        ignored: true
+        status: false,
+        detection: false,
+        ignored: false,
+        commands: false
     });
 
     const toggleSection = (section: string) => {
@@ -175,6 +175,26 @@ export default function TranslatorConfigPage() {
         });
     };
 
+    const addCommand = () => {
+        setSettings({
+            ...settings,
+            commands: [...settings.commands, { trigger: '!ts', target: 'en' }]
+        });
+    };
+
+    const updateCommand = (index: number, updates: Partial<{ trigger: string, target: string }>) => {
+        const newCommands = [...settings.commands];
+        newCommands[index] = { ...newCommands[index], ...updates };
+        setSettings({ ...settings, commands: newCommands });
+    };
+
+    const removeCommand = (index: number) => {
+        setSettings({
+            ...settings,
+            commands: settings.commands.filter((_, i) => i !== index)
+        });
+    };
+
     if (status === "loading") return <div className="text-white p-10">Loading...</div>;
 
     if (!session) {
@@ -264,163 +284,228 @@ export default function TranslatorConfigPage() {
             </header>
 
             <div className="max-w-2xl mx-auto w-full bg-neutral-900 rounded-xl border border-white/5 overflow-hidden flex flex-col h-[80vh] transition-all duration-300">
-                {/* Tabs */}
-                <div className="flex border-b border-white/5">
-                    <button onClick={() => setActiveTab("general")} className={`flex-1 py-3 text-sm font-medium flex justify-center items-center gap-2 ${activeTab === "general" ? "bg-white/5 text-purple-400" : "text-gray-400 hover:bg-white/5"}`}>
-                        <Palette size={16} /> General
-                    </button>
-                    <button onClick={() => setActiveTab("languages")} className={`flex-1 py-3 text-sm font-medium flex justify-center items-center gap-2 ${activeTab === "languages" ? "bg-white/5 text-purple-400" : "text-gray-400 hover:bg-white/5"}`}>
-                        <Languages size={16} /> Languages
-                    </button>
-                    <button onClick={() => setActiveTab("filters")} className={`flex-1 py-3 text-sm font-medium flex justify-center items-center gap-2 ${activeTab === "filters" ? "bg-white/5 text-purple-400" : "text-gray-400 hover:bg-white/5"}`}>
-                        <Activity size={16} /> Filters
-                    </button>
-                </div>
-
-                <div className="p-6 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
-                    {activeTab === "general" && (
-                        <div className="space-y-2 animate-in slide-in-from-left-4 fade-in duration-300">
-                            <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
-                                <button
-                                    onClick={() => toggleSection('status')}
-                                    className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
-                                >
-                                    Bot Status
-                                    {openSections.status ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                </button>
-                                {openSections.status && (
-                                    <div className="p-4 border-t border-white/5 space-y-4">
-                                        <div className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg border border-white/5">
-                                            <div className="space-y-1">
-                                                <span className="text-sm font-medium block">Automatic Translation</span>
-                                                <span className="text-[10px] text-gray-400 block">Captures and replies to chat messages</span>
-                                            </div>
-                                            <button
-                                                onClick={() => setSettings({ ...settings, enabled: !settings.enabled })}
-                                                className={`w-10 h-5 rounded-full transition-colors relative ${settings.enabled ? 'bg-purple-600' : 'bg-neutral-700'}`}
-                                            >
-                                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${settings.enabled ? 'left-5.5' : 'left-0.5'}`} style={{ left: settings.enabled ? '22px' : '2px' }} />
-                                            </button>
-                                        </div>
-                                        <div className="p-3 bg-purple-900/10 rounded-lg border border-purple-500/20 flex gap-3">
-                                            <Info size={16} className="text-purple-400 shrink-0 mt-0.5" />
-                                            <p className="text-[10px] text-gray-400 leading-relaxed">
-                                                This feature runs 100% in the cloud/background. It uses your permissions to post translations. Keep this tab open for the best experience.
-                                            </p>
-                                        </div>
+                <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+                    {/* Bot Status Section */}
+                    <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <button
+                            onClick={() => toggleSection('status')}
+                            className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                            Bot Status
+                            {openSections.status ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        </button>
+                        {openSections.status && (
+                            <div className="p-4 border-t border-white/5 space-y-4">
+                                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg border border-white/5">
+                                    <div className="space-y-1">
+                                        <span className="text-sm font-medium block">Automatic Translation</span>
+                                        <span className="text-[10px] text-gray-400 block">Captures and replies to chat messages</span>
                                     </div>
-                                )}
+                                    <button
+                                        onClick={() => setSettings({ ...settings, enabled: !settings.enabled })}
+                                        className={`w-10 h-5 rounded-full transition-colors relative ${settings.enabled ? 'bg-purple-600' : 'bg-neutral-700'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all`} style={{ left: settings.enabled ? '22px' : '2px' }} />
+                                    </button>
+                                </div>
+                                <div className="p-3 bg-purple-900/10 rounded-lg border border-purple-500/20 flex gap-3">
+                                    <Info size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] text-gray-400 leading-relaxed">
+                                        This feature runs 100% in the cloud/background. It uses your permissions to post translations. Keep this tab open for the best experience.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
-                    {activeTab === "languages" && (
-                        <div className="space-y-2 animate-in slide-in-from-left-4 fade-in duration-300">
-                            <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
-                                <button
-                                    onClick={() => toggleSection('detection')}
-                                    className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
-                                >
-                                    Routing & Detection
-                                    {openSections.detection ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                </button>
-                                {openSections.detection && (
-                                    <div className="p-4 border-t border-white/5 space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase">Target (Translate To)</label>
-                                                <select
-                                                    value={settings.targetLanguage}
-                                                    onChange={(e) => setSettings({ ...settings, targetLanguage: e.target.value })}
-                                                    className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                                                >
-                                                    {LANGUAGES.filter(l => l.code !== 'auto').map(lang => (
-                                                        <option key={lang.code} value={lang.code}>{lang.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase">Source (Translate From)</label>
-                                                <select
-                                                    value={settings.sourceLanguages}
-                                                    onChange={(e) => setSettings({ ...settings, sourceLanguages: e.target.value })}
-                                                    className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                                                >
-                                                    {LANGUAGES.map(lang => (
-                                                        <option key={lang.code} value={lang.code}>{lang.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
+                    {/* Routing & Detection Section */}
+                    <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-400">
+                        <button
+                            onClick={() => toggleSection('detection')}
+                            className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                            Routing & Detection
+                            {openSections.detection ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        </button>
+                        {openSections.detection && (
+                            <div className="p-4 border-t border-white/5 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Target (Translate To)</label>
+                                        <select
+                                            value={settings.targetLanguage}
+                                            onChange={(e) => setSettings({ ...settings, targetLanguage: e.target.value })}
+                                            className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                                        >
+                                            {LANGUAGES.filter(l => l.code !== 'auto').map(lang => (
+                                                <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
-                                )}
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Source (Translate From)</label>
+                                        <select
+                                            value={settings.sourceLanguages}
+                                            onChange={(e) => setSettings({ ...settings, sourceLanguages: e.target.value })}
+                                            className="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                                        >
+                                            {LANGUAGES.map(lang => (
+                                                <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
-                    {activeTab === "filters" && (
-                        <div className="space-y-2 animate-in slide-in-from-left-4 fade-in duration-300">
-                            <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900">
-                                <button
-                                    onClick={() => toggleSection('ignored')}
-                                    className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
-                                >
-                                    Language Filters
-                                    {openSections.ignored ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                </button>
-                                {openSections.ignored && (
-                                    <div className="p-4 border-t border-white/5 space-y-5">
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase">Min. Words ({settings.minWords})</label>
-                                            </div>
-                                            <input
-                                                type="range"
-                                                min="1"
-                                                max="10"
-                                                value={settings.minWords}
-                                                onChange={(e) => setSettings({ ...settings, minWords: parseInt(e.target.value) })}
-                                                className="w-full accent-purple-600 bg-neutral-800 h-1.5 rounded-lg appearance-none cursor-pointer"
-                                            />
-                                            <p className="text-[9px] text-gray-500 italic">Prevents spamming translations for single words or short greetings.</p>
-                                        </div>
+                    {/* Language Filters Section */}
+                    <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <button
+                            onClick={() => toggleSection('ignored')}
+                            className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                            Language Filters
+                            {openSections.ignored ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        </button>
+                        {openSections.ignored && (
+                            <div className="p-4 border-t border-white/5 space-y-5">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Min. Words ({settings.minWords})</label>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="10"
+                                        value={settings.minWords}
+                                        onChange={(e) => setSettings({ ...settings, minWords: parseInt(e.target.value) })}
+                                        className="w-full accent-purple-600 bg-neutral-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <p className="text-[9px] text-gray-500 italic">Prevents spamming translations for single words or short greetings.</p>
+                                </div>
 
-                                        <div className="space-y-3 pt-3 border-t border-white/5">
-                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Blacklisted Languages</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {settings.ignoredLanguages.map(lang => (
-                                                    <span key={lang} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 text-[10px] font-bold rounded border border-white/5 text-gray-300">
-                                                        {LANGUAGES.find(l => l.code === lang)?.name || lang.toUpperCase()}
-                                                        <button onClick={() => removeIgnoredLanguage(lang)} className="hover:text-red-400 transition-colors">
-                                                            <X size={10} />
-                                                        </button>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <select
-                                                    value={ignoredInput}
-                                                    onChange={(e) => setIgnoredInput(e.target.value)}
-                                                    className="flex-1 bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                                                >
-                                                    <option value="">Choose to ignore...</option>
-                                                    {LANGUAGES.filter(l => l.code !== 'auto' && !settings.ignoredLanguages.includes(l.code)).map(lang => (
-                                                        <option key={lang.code} value={lang.code}>{lang.name}</option>
-                                                    ))}
-                                                </select>
+                                <div className="space-y-3 pt-3 border-t border-white/5">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Blacklisted Languages</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {settings.ignoredLanguages.map(lang => (
+                                            <span key={lang} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 text-[10px] font-bold rounded border border-white/5 text-gray-300">
+                                                {LANGUAGES.find(l => l.code === lang)?.name || lang.toUpperCase()}
+                                                <button onClick={() => removeIgnoredLanguage(lang)} className="hover:text-red-400 transition-colors">
+                                                    <X size={10} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={ignoredInput}
+                                            onChange={(e) => setIgnoredInput(e.target.value)}
+                                            className="flex-1 bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                                        >
+                                            <option value="">Choose to ignore...</option>
+                                            {LANGUAGES.filter(l => l.code !== 'auto' && !settings.ignoredLanguages.includes(l.code)).map(lang => (
+                                                <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={addIgnoredLanguage}
+                                            className="px-3 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-white/10 transition-colors flex items-center justify-center"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Quick-Translation Commands Section */}
+                    <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                        <button
+                            onClick={() => toggleSection('commands')}
+                            className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                            Quick-Translation Commands
+                            {openSections.commands ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        </button>
+                        {openSections.commands && (
+                            <div className="p-4 border-t border-white/5 space-y-4">
+                                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg border border-white/5">
+                                    <div className="space-y-1">
+                                        <span className="text-sm font-medium block">Enable Commands</span>
+                                        <span className="text-[10px] text-gray-400 block">Trigger translations with chat commands (e.g., !tsen Hello)</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setSettings({ ...settings, commandsEnabled: !settings.commandsEnabled })}
+                                        className={`w-10 h-5 rounded-full transition-colors relative ${settings.commandsEnabled ? 'bg-purple-600' : 'bg-neutral-700'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all`} style={{ left: settings.commandsEnabled ? '22px' : '2px' }} />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Active Commands</label>
+                                        <button
+                                            onClick={addCommand}
+                                            className="p-1 px-2 text-[10px] bg-purple-600 hover:bg-purple-500 rounded text-white font-bold flex items-center gap-1 transition-colors"
+                                        >
+                                            <Plus size={10} /> Add Command
+                                        </button>
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        {settings.commands.map((cmd, idx) => (
+                                            <div key={idx} className="flex gap-2 p-2 bg-neutral-800/50 border border-white/5 rounded-lg items-center group">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="text"
+                                                        value={cmd.trigger}
+                                                        onChange={(e) => updateCommand(idx, { trigger: e.target.value })}
+                                                        className="w-full bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs focus:border-purple-500 focus:outline-none"
+                                                        placeholder="!command"
+                                                    />
+                                                </div>
+                                                <div className="w-32">
+                                                    <select
+                                                        value={cmd.target}
+                                                        onChange={(e) => updateCommand(idx, { target: e.target.value })}
+                                                        className="w-full bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs focus:border-purple-500 focus:outline-none"
+                                                    >
+                                                        {LANGUAGES.filter(l => l.code !== 'auto').map(lang => (
+                                                            <option key={lang.code} value={lang.code}>{lang.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                                 <button
-                                                    onClick={addIgnoredLanguage}
-                                                    className="px-3 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-white/10 transition-colors flex items-center justify-center"
+                                                    onClick={() => removeCommand(idx)}
+                                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-all"
                                                 >
-                                                    <Plus size={16} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </div>
-                                        </div>
+                                        ))}
+                                        {settings.commands.length === 0 && (
+                                            <div className="text-center py-6 border border-dashed border-white/10 rounded-lg text-gray-500 text-[10px]">
+                                                No commands configured. Click "Add Command" to start.
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                </div>
+
+                                <div className="p-3 bg-blue-900/10 rounded-lg border border-blue-500/20 flex gap-3">
+                                    <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-blue-300 font-bold uppercase">Pro Tip</p>
+                                        <p className="text-[10px] text-gray-400 leading-relaxed">
+                                            Manual commands override language filters and word counts. They are great for translating specific requests from your audience.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {/* Footer Action Bar */}
@@ -429,8 +514,8 @@ export default function TranslatorConfigPage() {
                         onClick={handleSave}
                         disabled={!hasUnsavedChanges || isSaving}
                         className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${hasUnsavedChanges
-                                ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/10 active:scale-[0.98]"
-                                : "bg-neutral-800 text-gray-500 cursor-not-allowed"
+                            ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/10 active:scale-[0.98]"
+                            : "bg-neutral-800 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         {isSaving ? (
@@ -461,8 +546,8 @@ export default function TranslatorConfigPage() {
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 20, scale: 0.95 }}
                             className={`pointer-events-auto px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 min-w-[200px] border ${toast.type === 'success' ? 'bg-green-600/90 border-green-500 text-white' :
-                                    toast.type === 'error' ? 'bg-red-600/90 border-red-500 text-white' :
-                                        'bg-neutral-800/90 border-white/10 text-white'
+                                toast.type === 'error' ? 'bg-red-600/90 border-red-500 text-white' :
+                                    'bg-neutral-800/90 border-white/10 text-white'
                                 } backdrop-blur-md`}
                         >
                             {toast.type === 'success' ? <CheckCircle size={18} /> :

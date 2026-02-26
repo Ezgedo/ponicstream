@@ -1,9 +1,16 @@
+export interface TranslatorCommand {
+    trigger: string;
+    target: string;
+}
+
 export interface TranslatorSettings {
     enabled: boolean;
     minWords: number;
     targetLanguage: string;
     sourceLanguages: string; // 'auto' or comma-separated list
     ignoredLanguages: string[];
+    commandsEnabled: boolean;
+    commands: TranslatorCommand[];
 }
 
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
@@ -12,6 +19,13 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
     targetLanguage: 'es',
     sourceLanguages: 'auto',
     ignoredLanguages: ['es'],
+    commandsEnabled: false,
+    commands: [
+        { trigger: '!tsen', target: 'en' },
+        { trigger: '!tses', target: 'es' },
+        { trigger: '!tsit', target: 'it' },
+        { trigger: '!tsjp', target: 'ja' },
+    ],
 };
 
 /**
