@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import tmi from "tmi.js";
 import { translateText, DEFAULT_TRANSLATOR_SETTINGS, TranslatorSettings } from "@/utils/translation";
 
@@ -17,9 +18,19 @@ export default function TranslationBot() {
     const lastReplyTimeRef = useRef<number>(0);
     const REPLY_COOLDOWN = 2000;
 
+    const pathname = usePathname();
+
     useEffect(() => {
+        // Prevent the bot from running in overlay sources (like OBS widgets)
+        // to avoid duplication and stale code issues.
+        if (pathname?.startsWith('/overlay')) {
+            console.log("[Bot] Skipping execution in overlay context");
+            return;
+        }
+
         let isCancelled = false;
         const botId = Math.random().toString(36).substring(7);
+        const version = "v1.2-leadership"; // Version identifier for debugging
         const LEADER_KEY = 'ponicstream_translator_leader_id';
         const HEARTBEAT_KEY = 'ponicstream_translator_leader_ts';
 
@@ -90,7 +101,7 @@ export default function TranslationBot() {
                     client.disconnect();
                     return;
                 }
-                console.log(`[Bot ${botId}] Connected`);
+                console.log(`[Bot ${botId}] Connected. Version: ${version} Path: ${pathname}`);
             }).catch(err => {
                 if (!isCancelled) console.error(`[Bot ${botId}] Connection failed`, err);
             });
@@ -141,7 +152,7 @@ export default function TranslationBot() {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('ponicstream_translator_update', handleCustomUpdate);
         };
-    }, [session?.accessToken, session?.user?.name]);
+    }, [session?.accessToken, session?.user?.name, pathname]);
 
     // This component renders nothing
     return null;
