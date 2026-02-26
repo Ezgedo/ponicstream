@@ -71,11 +71,11 @@ export async function translateText(text: string, settings: TranslatorSettings):
         // data format: [[["translated", "source", ...], ...], languageIdentifier, ...]
         if (data && data[0] && data[0][0] && data[0][0][0]) {
             const translated = data[0][0][0];
-            const detectedLang = data[2];
+            const detectedLang = (data[2] || "").toLowerCase();
 
-            // Filter logic: Ignore if detected language is the target language or in ignored list
-            if (detectedLang === settings.targetLanguage) return null;
-            if (settings.ignoredLanguages.includes(detectedLang)) return null;
+            // Filter logic: Ignore if detected language matches target or is in ignored list
+            if (detectedLang.startsWith(settings.targetLanguage.toLowerCase())) return null;
+            if (settings.ignoredLanguages.some(lang => detectedLang.startsWith(lang.toLowerCase()))) return null;
 
             // If the translated text is the same as the original, might be untranslatable
             if (translated.toLowerCase() === trimmedText.toLowerCase()) return null;
