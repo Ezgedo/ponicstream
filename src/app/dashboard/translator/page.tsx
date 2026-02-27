@@ -258,15 +258,6 @@ export default function TranslatorConfigPage() {
                         )}
                     </div>
 
-                    <div className="flex bg-neutral-800 rounded border border-white/10 overflow-hidden">
-                        <button onClick={handleCopyJson} className="px-3 py-1.5 text-xs hover:bg-neutral-700 flex items-center gap-1 transition-colors border-r border-white/5">
-                            <Copy size={12} /> Copy Config
-                        </button>
-                        <div className="px-3 py-1.5 text-xs flex items-center gap-1 text-purple-400">
-                            <Activity size={12} /> Headless
-                        </div>
-                    </div>
-
                     <div className="flex items-center gap-3 border-l border-white/10 pl-3 ml-1">
                         <div className="flex items-center gap-2">
                             <img src={session.user?.image || ""} className="w-8 h-8 rounded-full border border-purple-500" />

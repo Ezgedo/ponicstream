@@ -2,7 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
-import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight, Shield, Languages } from "lucide-react";
+import { MessageSquare, Layout, Settings, LogOut, ExternalLink, ArrowRight, Shield, Languages, Timer } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function DashboardHub() {
@@ -41,6 +41,15 @@ export default function DashboardHub() {
             href: "/dashboard/translator",
             color: "border-cyan-500/30 hover:border-cyan-500",
             bg: "bg-cyan-900/10 hover:bg-cyan-900/20"
+        },
+        {
+            id: "pomodoro",
+            title: "Pomodoro Timer",
+            description: "Customizable stream timer. Multiple states, chat commands, and premium visuals.",
+            icon: <Timer size={32} className="text-orange-400" />,
+            href: "/dashboard/pomodoro",
+            color: "border-orange-500/30 hover:border-orange-500",
+            bg: "bg-orange-900/10 hover:bg-orange-900/20"
         },
         // Future modules (Placeholders)
         {
