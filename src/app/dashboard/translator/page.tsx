@@ -41,6 +41,7 @@ export default function TranslatorConfigPage() {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [showConfigDropdown, setShowConfigDropdown] = useState(false);
     const [ignoredInput, setIgnoredInput] = useState('');
+    const [ignoredUserInput, setIgnoredUserInput] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const configDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +49,7 @@ export default function TranslatorConfigPage() {
         status: false,
         detection: false,
         ignored: false,
+        ignoredUsers: false,
         commands: false
     });
 
@@ -172,6 +174,24 @@ export default function TranslatorConfigPage() {
         setSettings({
             ...settings,
             ignoredLanguages: settings.ignoredLanguages.filter(l => l !== lang)
+        });
+    };
+
+    const addIgnoredUser = () => {
+        const user = ignoredUserInput.trim().toLowerCase().replace('@', '');
+        if (user && !settings.ignoredUsers?.includes(user)) {
+            setSettings({
+                ...settings,
+                ignoredUsers: [...(settings.ignoredUsers || []), user]
+            });
+            setIgnoredUserInput('');
+        }
+    };
+
+    const removeIgnoredUser = (user: string) => {
+        setSettings({
+            ...settings,
+            ignoredUsers: (settings.ignoredUsers || []).filter(u => u !== user)
         });
     };
 
@@ -406,6 +426,54 @@ export default function TranslatorConfigPage() {
                                             <Plus size={16} />
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Ignored Users Section */}
+                    <div className="border border-white/5 rounded-lg overflow-hidden bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-600">
+                        <button
+                            onClick={() => toggleSection('ignoredUsers')}
+                            className="w-full flex justify-between items-center p-3 text-xs font-bold text-gray-400 uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                            Ignored Users
+                            {openSections.ignoredUsers ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        </button>
+                        {openSections.ignoredUsers && (
+                            <div className="p-4 border-t border-white/5 space-y-5">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Users excluded from translation</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(settings.ignoredUsers || []).map(user => (
+                                            <span key={user} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-neutral-800 text-[10px] font-bold rounded border border-white/5 text-gray-300">
+                                                @{user}
+                                                <button onClick={() => removeIgnoredUser(user)} className="hover:text-red-400 transition-colors">
+                                                    <X size={10} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                        {(settings.ignoredUsers || []).length === 0 && (
+                                            <span className="text-[10px] text-gray-500 italic px-1">No users ignored.</span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={ignoredUserInput}
+                                            onChange={(e) => setIgnoredUserInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && addIgnoredUser()}
+                                            placeholder="Twitch username..."
+                                            className="flex-1 bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                                        />
+                                        <button
+                                            onClick={addIgnoredUser}
+                                            className="px-3 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-white/10 transition-colors flex items-center justify-center"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                    <p className="text-[9px] text-gray-500 italic">Messages from these users will be completely ignored by the translation bot.</p>
                                 </div>
                             </div>
                         )}

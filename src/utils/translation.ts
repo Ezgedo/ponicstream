@@ -11,6 +11,7 @@ export interface TranslatorSettings {
     ignoredLanguages: string[];
     commandsEnabled: boolean;
     commands: TranslatorCommand[];
+    ignoredUsers: string[];
 }
 
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
@@ -26,6 +27,7 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
         { trigger: '!tsit', target: 'it' },
         { trigger: '!tsjp', target: 'ja' },
     ],
+    ignoredUsers: [],
 };
 
 const translationCache: Record<string, string> = {};
@@ -40,6 +42,9 @@ export async function translateText(text: string, settings: TranslatorSettings):
     const wordCount = trimmedText.split(/\s+/).length;
     if (wordCount < settings.minWords) return null;
 
+    // Filter out laughter and keyboard smashes (e.g., jsjsjs, hajaja, asdfgh)
+    const laughterSmashRegex = /^(?:[js]{3,}|[ha]{3,}|[ah]{3,}|[he]{3,}|[hi]{3,}|[ho]{3,}|[hu]{3,}|[lol]{2,}|[asdfghjkl]{4,})$/i;
+    if (laughterSmashRegex.test(trimmedText.replace(/\s+/g, ''))) return null;
 
     const cacheKey = `${settings.targetLanguage}:${trimmedText}`;
     if (translationCache[cacheKey]) return translationCache[cacheKey];

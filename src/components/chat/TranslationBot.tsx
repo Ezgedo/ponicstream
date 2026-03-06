@@ -109,6 +109,16 @@ export default function TranslationBot() {
             client.on("message", async (targetChannel, tags, message, self) => {
                 if (self || isCancelled) return;
 
+                const username = (tags.username || "").toLowerCase();
+                const displayName = (tags['display-name'] || "").toLowerCase();
+
+                if (settings.ignoredUsers?.some(u => {
+                    const ignored = u.toLowerCase().replace('@', '');
+                    return username === ignored || displayName === ignored;
+                })) {
+                    return;
+                }
+
                 // Handle manual commands (!tsen, !tses, etc.)
                 if (settings.commandsEnabled && message.startsWith('!')) {
                     const parts = message.trim().split(/\s+/);
